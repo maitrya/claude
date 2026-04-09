@@ -1,0 +1,1179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Prepped Talent — Resume Reviewer</title>
+  <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            navy: {
+              50:  '#e8e8f5',
+              100: '#c5c5e5',
+              200: '#9e9ed4',
+              300: '#7777c3',
+              400: '#5555b6',
+              500: '#3333a9',
+              600: '#2b2b9a',
+              700: '#222286',
+              800: '#161671',
+              900: '#1a1a2e',
+            },
+            gold: {
+              300: '#e8d5a3',
+              400: '#ddc278',
+              500: '#c9a84c',
+              600: '#b5923a',
+              700: '#9e7d2e',
+            }
+          },
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: 'Inter', sans-serif;
+      background: #1a1a2e;
+      min-height: 100vh;
+    }
+
+    /* scrollbar */
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: #16213e; }
+    ::-webkit-scrollbar-thumb { background: #c9a84c55; border-radius: 3px; }
+
+    /* card */
+    .glass-card {
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(201,168,76,0.18);
+      backdrop-filter: blur(10px);
+      border-radius: 16px;
+    }
+
+    /* progress bar */
+    .progress-track {
+      background: rgba(255,255,255,0.08);
+      border-radius: 99px;
+      height: 4px;
+      overflow: hidden;
+    }
+    .progress-fill {
+      background: linear-gradient(90deg, #c9a84c, #e8d5a3);
+      height: 100%;
+      border-radius: 99px;
+      transition: width 0.5s cubic-bezier(0.4,0,0.2,1);
+    }
+
+    /* step dot */
+    .step-dot {
+      width: 28px; height: 28px;
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 11px; font-weight: 700;
+      transition: all 0.3s;
+    }
+    .step-dot.active   { background: #c9a84c; color: #1a1a2e; }
+    .step-dot.done     { background: rgba(201,168,76,0.25); color: #c9a84c; border: 1px solid #c9a84c55; }
+    .step-dot.inactive { background: rgba(255,255,255,0.07); color: rgba(255,255,255,0.3); }
+
+    /* role card */
+    .role-card {
+      cursor: pointer;
+      border: 2px solid rgba(255,255,255,0.08);
+      border-radius: 12px;
+      padding: 16px;
+      transition: all 0.25s;
+      background: rgba(255,255,255,0.03);
+    }
+    .role-card:hover {
+      border-color: rgba(201,168,76,0.4);
+      background: rgba(201,168,76,0.05);
+    }
+    .role-card.selected {
+      border-color: #c9a84c;
+      background: rgba(201,168,76,0.1);
+      box-shadow: 0 0 0 1px #c9a84c33, 0 4px 20px rgba(201,168,76,0.1);
+    }
+
+    /* skill bubble */
+    .skill-bubble {
+      cursor: pointer;
+      border-radius: 99px;
+      font-weight: 600;
+      font-size: 12px;
+      line-height: 1;
+      padding: 8px 16px;
+      transition: all 0.2s;
+      border: 2px solid transparent;
+      white-space: nowrap;
+      user-select: none;
+    }
+    .skill-bubble.selected {
+      background: #c9a84c;
+      color: #1a1a2e;
+      border-color: #c9a84c;
+      box-shadow: 0 4px 14px rgba(201,168,76,0.35);
+    }
+    .skill-bubble.unselected {
+      background: rgba(255,255,255,0.06);
+      color: rgba(255,255,255,0.55);
+      border-color: rgba(255,255,255,0.1);
+    }
+    .skill-bubble.unselected:hover {
+      background: rgba(201,168,76,0.12);
+      color: #c9a84c;
+      border-color: rgba(201,168,76,0.35);
+    }
+    .skill-bubble.lg { font-size: 14px; padding: 10px 20px; }
+    .skill-bubble.md { font-size: 12px; padding: 8px 16px; }
+    .skill-bubble.sm { font-size: 11px; padding: 7px 13px; }
+
+    /* multi-choice option */
+    .mc-option {
+      cursor: pointer;
+      border-radius: 8px;
+      padding: 10px 14px;
+      border: 1.5px solid rgba(255,255,255,0.08);
+      background: rgba(255,255,255,0.03);
+      color: rgba(255,255,255,0.7);
+      font-size: 13px;
+      font-weight: 500;
+      transition: all 0.2s;
+    }
+    .mc-option:hover {
+      border-color: rgba(201,168,76,0.35);
+      color: #c9a84c;
+      background: rgba(201,168,76,0.05);
+    }
+    .mc-option.selected {
+      border-color: #c9a84c;
+      background: rgba(201,168,76,0.12);
+      color: #c9a84c;
+    }
+
+    /* checkbox option */
+    .cb-option {
+      cursor: pointer;
+      display: flex; align-items: center; gap: 10px;
+      border-radius: 8px;
+      padding: 9px 13px;
+      border: 1.5px solid rgba(255,255,255,0.08);
+      background: rgba(255,255,255,0.03);
+      color: rgba(255,255,255,0.7);
+      font-size: 13px;
+      font-weight: 500;
+      transition: all 0.2s;
+    }
+    .cb-option:hover {
+      border-color: rgba(201,168,76,0.35);
+      color: #c9a84c;
+      background: rgba(201,168,76,0.05);
+    }
+    .cb-option.selected {
+      border-color: #c9a84c;
+      background: rgba(201,168,76,0.12);
+      color: #c9a84c;
+    }
+    .cb-box {
+      width: 16px; height: 16px;
+      border-radius: 4px;
+      border: 2px solid rgba(255,255,255,0.2);
+      flex-shrink: 0;
+      transition: all 0.2s;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .cb-box.checked {
+      background: #c9a84c;
+      border-color: #c9a84c;
+    }
+
+    /* textarea / input */
+    .pt-input {
+      width: 100%;
+      background: rgba(255,255,255,0.04);
+      border: 1.5px solid rgba(255,255,255,0.1);
+      border-radius: 10px;
+      color: #fff;
+      font-family: 'Inter', sans-serif;
+      font-size: 14px;
+      padding: 12px 14px;
+      outline: none;
+      transition: border-color 0.2s;
+      resize: vertical;
+    }
+    .pt-input::placeholder { color: rgba(255,255,255,0.3); }
+    .pt-input:focus { border-color: rgba(201,168,76,0.5); }
+
+    /* drop zone */
+    .drop-zone {
+      border: 2px dashed rgba(201,168,76,0.3);
+      border-radius: 12px;
+      padding: 32px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.25s;
+    }
+    .drop-zone:hover, .drop-zone.dragging {
+      border-color: #c9a84c;
+      background: rgba(201,168,76,0.05);
+    }
+
+    /* prompt output */
+    .prompt-block {
+      background: rgba(0,0,0,0.35);
+      border: 1px solid rgba(201,168,76,0.2);
+      border-radius: 12px;
+      padding: 20px;
+      font-family: 'Courier New', monospace;
+      font-size: 13px;
+      color: rgba(255,255,255,0.85);
+      white-space: pre-wrap;
+      line-height: 1.7;
+      max-height: 420px;
+      overflow-y: auto;
+    }
+
+    /* buttons */
+    .btn-primary {
+      background: linear-gradient(135deg, #c9a84c, #e8d5a3);
+      color: #1a1a2e;
+      font-weight: 700;
+      font-size: 14px;
+      border: none;
+      border-radius: 10px;
+      padding: 13px 28px;
+      cursor: pointer;
+      transition: all 0.2s;
+      box-shadow: 0 4px 14px rgba(201,168,76,0.3);
+    }
+    .btn-primary:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 6px 20px rgba(201,168,76,0.4);
+    }
+    .btn-primary:active { transform: translateY(0); }
+    .btn-primary:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+      transform: none;
+      box-shadow: none;
+    }
+
+    .btn-secondary {
+      background: rgba(255,255,255,0.06);
+      color: rgba(255,255,255,0.65);
+      font-weight: 600;
+      font-size: 14px;
+      border: 1.5px solid rgba(255,255,255,0.1);
+      border-radius: 10px;
+      padding: 13px 22px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .btn-secondary:hover {
+      background: rgba(255,255,255,0.1);
+      color: #fff;
+      border-color: rgba(255,255,255,0.2);
+    }
+
+    .btn-copy {
+      background: linear-gradient(135deg, #c9a84c, #e8d5a3);
+      color: #1a1a2e;
+      font-weight: 700;
+      font-size: 15px;
+      border: none;
+      border-radius: 10px;
+      padding: 14px 32px;
+      cursor: pointer;
+      transition: all 0.2s;
+      box-shadow: 0 4px 18px rgba(201,168,76,0.35);
+    }
+    .btn-copy:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(201,168,76,0.45); }
+    .btn-copy.copied { background: linear-gradient(135deg, #4caf7d, #81c995); }
+
+    /* animate in */
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(18px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    .fade-up { animation: fadeUp 0.4s ease forwards; }
+
+    /* select */
+    select.pt-input { cursor: pointer; }
+    option { background: #16213e; }
+
+    /* label */
+    .pt-label {
+      display: block;
+      font-size: 12px;
+      font-weight: 600;
+      color: rgba(255,255,255,0.45);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 8px;
+    }
+
+    /* section heading */
+    .section-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(201,168,76,0.12);
+      border: 1px solid rgba(201,168,76,0.25);
+      border-radius: 6px;
+      padding: 3px 10px;
+      font-size: 11px;
+      font-weight: 700;
+      color: #c9a84c;
+      letter-spacing: 0.07em;
+      text-transform: uppercase;
+      margin-bottom: 8px;
+    }
+
+    /* helper text */
+    .helper-text {
+      font-size: 12px;
+      color: rgba(255,255,255,0.35);
+      margin-top: 6px;
+      line-height: 1.5;
+    }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script type="text/babel">
+    // ── pdf.js worker ──────────────────────────────────────────────────────────
+    if (typeof pdfjsLib !== 'undefined') {
+      pdfjsLib.GlobalWorkerOptions.workerSrc =
+        'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    }
+
+    // ── constants ──────────────────────────────────────────────────────────────
+    const TOTAL_STEPS = 6;
+
+    const ROLES = [
+      {
+        id: 'corp_dev',
+        label: 'Corporate Development',
+        icon: '🏢',
+        desc: 'In-house M&A teams at corporates — evaluating acquisitions, partnerships and divestitures.',
+      },
+      {
+        id: 'ib',
+        label: 'Investment Banking',
+        icon: '🏦',
+        desc: 'Advising clients on M&A deals, capital raises and restructurings at a bank.',
+      },
+      {
+        id: 'pe',
+        label: 'Private Equity',
+        icon: '📈',
+        desc: 'Deploying fund capital to acquire, grow and exit portfolio companies.',
+      },
+      {
+        id: 'ma_advisory',
+        label: 'M&A Advisory',
+        icon: '🤝',
+        desc: 'Boutique or Big-4 advisory — providing independent M&A deal and strategic counsel.',
+      },
+    ];
+
+    const ALL_SKILLS = [
+      { id: 'excel',          label: 'Excel',                       size: 'lg' },
+      { id: 'fin_modelling',  label: 'Financial Modelling',         size: 'lg' },
+      { id: 'dcf',            label: 'Valuation (DCF)',             size: 'lg' },
+      { id: 'comps',          label: 'Comparable Analysis',         size: 'md' },
+      { id: 'precedent',      label: 'Precedent Transactions',      size: 'md' },
+      { id: 'due_diligence',  label: 'Due Diligence',               size: 'md' },
+      { id: 'pptx',           label: 'PowerPoint / Pitchbooks',     size: 'md' },
+      { id: 'data_analysis',  label: 'Data Analysis',               size: 'sm' },
+      { id: 'accounting',     label: 'Accounting / Fin. Statements',size: 'sm' },
+      { id: 'ma_process',     label: 'M&A Process Knowledge',       size: 'sm' },
+      { id: 'vba',            label: 'VBA / Macros',                size: 'sm' },
+      { id: 'bloomberg',      label: 'Bloomberg Terminal',          size: 'sm' },
+      { id: 'capitaliq',      label: 'Capital IQ',                  size: 'sm' },
+    ];
+
+    const ROLE_LABELS = {
+      corp_dev:    'Corporate Development',
+      ib:          'Investment Banking',
+      pe:          'Private Equity',
+      ma_advisory: 'M&A Advisory',
+    };
+
+    // ── helpers ────────────────────────────────────────────────────────────────
+    function deriveInitialSkills(answers) {
+      const suggested = new Set();
+      if (answers.excelFreq === 'Daily')   { suggested.add('excel'); }
+      if (answers.excelFreq === 'Weekly')  { suggested.add('excel'); }
+      if (answers.finAnalysis === 'Yes regularly' || answers.finAnalysis === 'Sometimes') {
+        suggested.add('data_analysis');
+        suggested.add('accounting');
+      }
+      if (answers.finModels === 'Yes professionally') {
+        suggested.add('fin_modelling');
+        suggested.add('dcf');
+        suggested.add('comps');
+      }
+      if (answers.finModels === 'Yes coursework') {
+        suggested.add('fin_modelling');
+        suggested.add('dcf');
+      }
+      (answers.valuationMethods || []).forEach(v => {
+        if (v === 'DCF')                             suggested.add('dcf');
+        if (v === 'Comparable Company Analysis')     suggested.add('comps');
+        if (v === 'Precedent Transactions')          suggested.add('precedent');
+        if (v === 'LBO Modelling')                   suggested.add('fin_modelling');
+      });
+      return suggested;
+    }
+
+    function buildPrompt(data) {
+      const skillList = ALL_SKILLS
+        .filter(s => data.selectedSkills.has(s.id))
+        .map(s => s.label)
+        .join(', ') || 'None specified';
+
+      const roleLabel = ROLE_LABELS[data.targetRole] || data.targetRole || '[not specified]';
+      const resumeSection = data.resumeText
+        ? data.resumeText.trim()
+        : 'See attached PDF';
+
+      return `You are an expert M&A career coach and resume reviewer. Review the following resume for a candidate targeting ${roleLabel} positions in M&A.
+
+Candidate background:
+- Current/recent role: ${data.currentRole || '[not provided]'}
+- Years of experience: ${data.yearsExp || '[not provided]'}
+- Deal experience: ${data.dealExperience || '[not provided]'}
+- Confirmed technical skills: ${skillList}
+- Self-identified weakness: ${data.weakness || '[not provided]'}
+
+Resume:
+${resumeSection}
+
+Please provide:
+1. Overall positioning score (1-10) with rationale
+2. Top 3 strengths for M&A roles
+3. Top 3 gaps or weaknesses
+4. 5 specific bullet rewrites (show original → improved)
+5. Recommended headline/summary for ${roleLabel}
+6. Red flags a hiring manager would notice`;
+    }
+
+    // ── sub-components ─────────────────────────────────────────────────────────
+    const { useState, useRef, useCallback, useEffect } = React;
+
+    function ProgressBar({ step }) {
+      const pct = ((step - 1) / (TOTAL_STEPS - 1)) * 100;
+      const labels = ['About You', 'Target Role', 'Deal Exp.', 'Skills', 'Resume', 'Your Prompt'];
+      return (
+        <div style={{ marginBottom: 28 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+            <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)', fontWeight: 600, letterSpacing: '0.05em' }}>
+              STEP {step} OF {TOTAL_STEPS}
+            </span>
+            <span style={{ fontSize: 12, color: '#c9a84c', fontWeight: 700 }}>
+              {labels[step - 1]}
+            </span>
+          </div>
+          <div className="progress-track">
+            <div className="progress-fill" style={{ width: `${pct}%` }} />
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 10 }}>
+            {labels.map((l, i) => (
+              <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+                <div className={`step-dot ${i + 1 < step ? 'done' : i + 1 === step ? 'active' : 'inactive'}`}>
+                  {i + 1 < step ? '✓' : i + 1}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      );
+    }
+
+    function NavButtons({ step, onBack, onNext, nextLabel, nextDisabled }) {
+      return (
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 32 }}>
+          {step > 1
+            ? <button className="btn-secondary" onClick={onBack}>← Back</button>
+            : <div />
+          }
+          <button className="btn-primary" onClick={onNext} disabled={nextDisabled}>
+            {nextLabel || (step === TOTAL_STEPS ? 'Finish' : 'Next →')}
+          </button>
+        </div>
+      );
+    }
+
+    // ─── SCREEN 1: About You ──────────────────────────────────────────────────
+    function Screen1({ data, setData, onNext }) {
+      return (
+        <div className="fade-up">
+          <div className="section-tag">About You</div>
+          <h2 style={{ color: '#fff', fontSize: 22, fontWeight: 700, marginTop: 6, marginBottom: 6 }}>
+            Tell us about your background
+          </h2>
+          <p style={{ color: 'rgba(255,255,255,0.45)', fontSize: 14, marginBottom: 24, lineHeight: 1.6 }}>
+            This helps us tailor the AI prompt to your specific starting point — whether you're a recent grad or making a career pivot.
+          </p>
+
+          <div style={{ marginBottom: 20 }}>
+            <label className="pt-label">Current or most recent role</label>
+            <input
+              className="pt-input"
+              type="text"
+              placeholder="e.g., Analyst at Deloitte, Finance graduate from UNSW"
+              value={data.currentRole}
+              onChange={e => setData(d => ({ ...d, currentRole: e.target.value }))}
+              style={{ display: 'block' }}
+            />
+            <p className="helper-text">Include your company/institution and any relevant title.</p>
+          </div>
+
+          <div style={{ marginBottom: 8 }}>
+            <label className="pt-label">Years of relevant experience</label>
+            <select
+              className="pt-input"
+              value={data.yearsExp}
+              onChange={e => setData(d => ({ ...d, yearsExp: e.target.value }))}
+              style={{ display: 'block' }}
+            >
+              <option value="">Select range…</option>
+              <option value="0-1 years (student / graduate)">0–1 years (student / graduate)</option>
+              <option value="1-3 years">1–3 years</option>
+              <option value="3-5 years">3–5 years</option>
+              <option value="5-10 years">5–10 years</option>
+              <option value="10+ years">10+ years</option>
+            </select>
+          </div>
+
+          <NavButtons
+            step={1}
+            onNext={onNext}
+            nextDisabled={!data.currentRole.trim() || !data.yearsExp}
+          />
+        </div>
+      );
+    }
+
+    // ─── SCREEN 2: Target Role ────────────────────────────────────────────────
+    function Screen2({ data, setData, onBack, onNext }) {
+      return (
+        <div className="fade-up">
+          <div className="section-tag">Target Role</div>
+          <h2 style={{ color: '#fff', fontSize: 22, fontWeight: 700, marginTop: 6, marginBottom: 6 }}>
+            Which M&A path are you targeting?
+          </h2>
+          <p style={{ color: 'rgba(255,255,255,0.45)', fontSize: 14, marginBottom: 24, lineHeight: 1.6 }}>
+            Select the role type you want the AI to optimise your resume toward.
+          </p>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12 }}>
+            {ROLES.map(r => (
+              <div
+                key={r.id}
+                className={`role-card ${data.targetRole === r.id ? 'selected' : ''}`}
+                onClick={() => setData(d => ({ ...d, targetRole: r.id }))}
+              >
+                <div style={{ fontSize: 26, marginBottom: 8 }}>{r.icon}</div>
+                <div style={{ color: '#fff', fontWeight: 700, fontSize: 14, marginBottom: 5 }}>{r.label}</div>
+                <div style={{ color: 'rgba(255,255,255,0.45)', fontSize: 12, lineHeight: 1.5 }}>{r.desc}</div>
+                {data.targetRole === r.id && (
+                  <div style={{ marginTop: 10, color: '#c9a84c', fontSize: 12, fontWeight: 700 }}>✓ Selected</div>
+                )}
+              </div>
+            ))}
+          </div>
+
+          <NavButtons step={2} onBack={onBack} onNext={onNext} nextDisabled={!data.targetRole} />
+        </div>
+      );
+    }
+
+    // ─── SCREEN 3: Deal Experience ────────────────────────────────────────────
+    function Screen3({ data, setData, onBack, onNext }) {
+      return (
+        <div className="fade-up">
+          <div className="section-tag">Deal Experience</div>
+          <h2 style={{ color: '#fff', fontSize: 22, fontWeight: 700, marginTop: 6, marginBottom: 6 }}>
+            What deal experience do you have?
+          </h2>
+          <p style={{ color: 'rgba(255,255,255,0.45)', fontSize: 14, marginBottom: 10, lineHeight: 1.6 }}>
+            Include internship exposure, university projects, or supporting roles — no deal is too small.
+            If you have none yet, that's completely fine.
+          </p>
+
+          <div style={{
+            background: 'rgba(201,168,76,0.07)',
+            border: '1px solid rgba(201,168,76,0.2)',
+            borderRadius: 10,
+            padding: '10px 14px',
+            marginBottom: 16,
+            fontSize: 13,
+            color: 'rgba(255,255,255,0.55)',
+            lineHeight: 1.55,
+          }}>
+            <strong style={{ color: '#c9a84c' }}>Tip:</strong> If you have no direct experience, describe a relevant
+            project — e.g., a university valuation exercise, a case competition, or a self-directed analysis you ran.
+            The AI will factor in your level.
+          </div>
+
+          <textarea
+            className="pt-input"
+            rows={6}
+            placeholder="e.g., Assisted with due diligence on a $50M acquisition during internship / No direct deal experience yet, but completed a DCF valuation project at university"
+            value={data.dealExperience}
+            onChange={e => setData(d => ({ ...d, dealExperience: e.target.value }))}
+          />
+          <p className="helper-text">Approximate deal sizes, industries, or transaction types are helpful but optional.</p>
+
+          <NavButtons step={3} onBack={onBack} onNext={onNext} />
+        </div>
+      );
+    }
+
+    // ─── SCREEN 4: Skills Assessment ─────────────────────────────────────────
+    function Screen4({ data, setData, onBack, onNext }) {
+      const { skillAnswers, selectedSkills } = data;
+
+      function setAnswer(key, val) {
+        setData(d => {
+          const newAnswers = { ...d.skillAnswers, [key]: val };
+          const suggested = deriveInitialSkills(newAnswers);
+          // Merge: keep manually toggled skills, add newly suggested
+          const merged = new Set(d.selectedSkills);
+          suggested.forEach(s => merged.add(s));
+          return { ...d, skillAnswers: newAnswers, selectedSkills: merged };
+        });
+      }
+
+      function toggleValuation(method) {
+        setData(d => {
+          const current = d.skillAnswers.valuationMethods || [];
+          const newList = current.includes(method)
+            ? current.filter(x => x !== method)
+            : [...current, method];
+          const newAnswers = { ...d.skillAnswers, valuationMethods: newList };
+          const suggested = deriveInitialSkills(newAnswers);
+          const merged = new Set(d.selectedSkills);
+          suggested.forEach(s => merged.add(s));
+          return { ...d, skillAnswers: newAnswers, selectedSkills: merged };
+        });
+      }
+
+      function toggleSkill(id) {
+        setData(d => {
+          const s = new Set(d.selectedSkills);
+          if (s.has(id)) s.delete(id); else s.add(id);
+          return { ...d, selectedSkills: s };
+        });
+      }
+
+      const valMethods = ['DCF', 'Comparable Company Analysis', 'Precedent Transactions', 'LBO Modelling', 'None yet'];
+
+      function McGroup({ label, options, answerKey }) {
+        return (
+          <div style={{ marginBottom: 18 }}>
+            <label className="pt-label">{label}</label>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+              {options.map(opt => (
+                <div
+                  key={opt}
+                  className={`mc-option ${skillAnswers[answerKey] === opt ? 'selected' : ''}`}
+                  onClick={() => setAnswer(answerKey, opt)}
+                >
+                  {opt}
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      }
+
+      return (
+        <div className="fade-up">
+          <div className="section-tag">Skills Assessment</div>
+          <h2 style={{ color: '#fff', fontSize: 22, fontWeight: 700, marginTop: 6, marginBottom: 6 }}>
+            Let's map your technical skills
+          </h2>
+          <p style={{ color: 'rgba(255,255,255,0.45)', fontSize: 14, marginBottom: 22, lineHeight: 1.6 }}>
+            Answer a few quick questions, then confirm your skill map below.
+          </p>
+
+          {/* Part A */}
+          <div style={{
+            background: 'rgba(255,255,255,0.03)',
+            border: '1px solid rgba(255,255,255,0.07)',
+            borderRadius: 12,
+            padding: 18,
+            marginBottom: 24,
+          }}>
+            <div style={{ color: '#c9a84c', fontWeight: 700, fontSize: 13, marginBottom: 16, letterSpacing: '0.05em' }}>
+              PART A — Quick Check-In
+            </div>
+
+            <McGroup
+              label="How often do you use Excel for financial work?"
+              options={['Daily', 'Weekly', 'Rarely', 'Never']}
+              answerKey="excelFreq"
+            />
+            <McGroup
+              label="Do you perform financial analysis (ratios, variance, forecasting)?"
+              options={['Yes regularly', 'Sometimes', 'Not really']}
+              answerKey="finAnalysis"
+            />
+            <McGroup
+              label="Have you built financial models?"
+              options={['Yes professionally', 'Yes — coursework / personal', 'Not yet']}
+              answerKey="finModels"
+            />
+
+            <div style={{ marginBottom: 4 }}>
+              <label className="pt-label">Valuation methods you're comfortable with</label>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                {valMethods.map(m => {
+                  const checked = (skillAnswers.valuationMethods || []).includes(m);
+                  return (
+                    <div
+                      key={m}
+                      className={`cb-option ${checked ? 'selected' : ''}`}
+                      onClick={() => toggleValuation(m)}
+                    >
+                      <div className={`cb-box ${checked ? 'checked' : ''}`}>
+                        {checked && <svg width="10" height="8" viewBox="0 0 10 8" fill="none">
+                          <path d="M1 4L3.5 6.5L9 1" stroke="#1a1a2e" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                        </svg>}
+                      </div>
+                      {m}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+
+          {/* Part B */}
+          <div style={{
+            background: 'rgba(255,255,255,0.03)',
+            border: '1px solid rgba(255,255,255,0.07)',
+            borderRadius: 12,
+            padding: 18,
+          }}>
+            <div style={{ color: '#c9a84c', fontWeight: 700, fontSize: 13, marginBottom: 4, letterSpacing: '0.05em' }}>
+              PART B — Your Skill Map
+            </div>
+            <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 12, marginBottom: 16, lineHeight: 1.5 }}>
+              Gold bubbles are pre-highlighted based on your answers above. Click any bubble to toggle it on or off.
+            </p>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center' }}>
+              {ALL_SKILLS.map(skill => (
+                <div
+                  key={skill.id}
+                  className={`skill-bubble ${skill.size} ${selectedSkills.has(skill.id) ? 'selected' : 'unselected'}`}
+                  onClick={() => toggleSkill(skill.id)}
+                >
+                  {skill.label}
+                </div>
+              ))}
+            </div>
+            {selectedSkills.size === 0 && (
+              <p style={{ color: 'rgba(255,255,255,0.3)', fontSize: 12, marginTop: 12 }}>
+                No skills selected yet — answer Part A or click bubbles above.
+              </p>
+            )}
+          </div>
+
+          <NavButtons step={4} onBack={onBack} onNext={onNext} />
+        </div>
+      );
+    }
+
+    // ─── SCREEN 5: Weakness + Resume ──────────────────────────────────────────
+    function Screen5({ data, setData, onBack, onNext }) {
+      const [dragging, setDragging]     = useState(false);
+      const [pdfStatus, setPdfStatus]   = useState('idle'); // idle | loading | done | error
+      const [pdfName, setPdfName]       = useState('');
+      const [showFallback, setShowFallback] = useState(false);
+      const fileRef = useRef(null);
+
+      async function extractPdf(file) {
+        if (!file || file.type !== 'application/pdf') {
+          alert('Please upload a valid PDF file.');
+          return;
+        }
+        setPdfName(file.name);
+        setPdfStatus('loading');
+        try {
+          if (typeof pdfjsLib === 'undefined') throw new Error('pdf.js not loaded');
+          const arrayBuffer = await file.arrayBuffer();
+          const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+          let fullText = '';
+          for (let i = 1; i <= pdf.numPages; i++) {
+            const page = await pdf.getPage(i);
+            const content = await page.getTextContent();
+            const pageText = content.items.map(item => item.str).join(' ');
+            fullText += pageText + '\n\n';
+          }
+          setData(d => ({ ...d, resumeText: fullText.trim() }));
+          setPdfStatus('done');
+        } catch (err) {
+          console.error('PDF extraction failed:', err);
+          setPdfStatus('error');
+          setShowFallback(true);
+        }
+      }
+
+      function handleFile(file) {
+        if (file) extractPdf(file);
+      }
+
+      function onDrop(e) {
+        e.preventDefault();
+        setDragging(false);
+        const file = e.dataTransfer.files[0];
+        handleFile(file);
+      }
+
+      return (
+        <div className="fade-up">
+          <div className="section-tag">Weakness + Resume</div>
+          <h2 style={{ color: '#fff', fontSize: 22, fontWeight: 700, marginTop: 6, marginBottom: 6 }}>
+            One honest gap — and your resume
+          </h2>
+          <p style={{ color: 'rgba(255,255,255,0.45)', fontSize: 14, marginBottom: 24, lineHeight: 1.6 }}>
+            Honest self-awareness helps the AI give you targeted feedback rather than generic praise.
+          </p>
+
+          {/* Weakness */}
+          <div style={{ marginBottom: 26 }}>
+            <label className="pt-label">Your biggest perceived weakness for this role</label>
+            <textarea
+              className="pt-input"
+              rows={3}
+              placeholder="e.g., Limited financial modelling depth / Haven't worked on live deals / Need to sharpen my valuation presentation skills"
+              value={data.weakness}
+              onChange={e => setData(d => ({ ...d, weakness: e.target.value }))}
+            />
+            <p className="helper-text">Be candid — this goes directly into your AI prompt so you get honest, specific feedback.</p>
+          </div>
+
+          {/* PDF Upload */}
+          <div>
+            <label className="pt-label">Upload your resume (PDF)</label>
+
+            {!showFallback && (
+              <>
+                <div
+                  className={`drop-zone ${dragging ? 'dragging' : ''}`}
+                  onClick={() => fileRef.current && fileRef.current.click()}
+                  onDragOver={e => { e.preventDefault(); setDragging(true); }}
+                  onDragLeave={() => setDragging(false)}
+                  onDrop={onDrop}
+                >
+                  {pdfStatus === 'idle' && (
+                    <>
+                      <div style={{ fontSize: 32, marginBottom: 10 }}>📄</div>
+                      <div style={{ color: 'rgba(255,255,255,0.65)', fontWeight: 600, fontSize: 14, marginBottom: 4 }}>
+                        Drag & drop your PDF here
+                      </div>
+                      <div style={{ color: 'rgba(255,255,255,0.3)', fontSize: 12 }}>
+                        or <span style={{ color: '#c9a84c', cursor: 'pointer' }}>click to browse</span>
+                      </div>
+                    </>
+                  )}
+                  {pdfStatus === 'loading' && (
+                    <div style={{ color: '#c9a84c', fontWeight: 600 }}>⏳ Extracting text from PDF…</div>
+                  )}
+                  {pdfStatus === 'done' && (
+                    <>
+                      <div style={{ fontSize: 28, marginBottom: 8 }}>✅</div>
+                      <div style={{ color: '#c9a84c', fontWeight: 700, fontSize: 14 }}>{pdfName}</div>
+                      <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: 12, marginTop: 4 }}>
+                        {data.resumeText.length} characters extracted
+                      </div>
+                      <div
+                        style={{ color: 'rgba(255,255,255,0.3)', fontSize: 12, marginTop: 8, cursor: 'pointer', textDecoration: 'underline' }}
+                        onClick={e => { e.stopPropagation(); setPdfStatus('idle'); setData(d => ({ ...d, resumeText: '' })); }}
+                      >
+                        Replace file
+                      </div>
+                    </>
+                  )}
+                  {pdfStatus === 'error' && (
+                    <div style={{ color: '#ff6b6b', fontWeight: 600 }}>Could not extract PDF — see text fallback below.</div>
+                  )}
+                  <input
+                    ref={fileRef}
+                    type="file"
+                    accept="application/pdf"
+                    style={{ display: 'none' }}
+                    onChange={e => handleFile(e.target.files[0])}
+                  />
+                </div>
+
+                <div style={{ textAlign: 'center', marginTop: 10 }}>
+                  <button
+                    style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.3)', fontSize: 12, cursor: 'pointer', textDecoration: 'underline' }}
+                    onClick={() => setShowFallback(true)}
+                  >
+                    Prefer to paste your resume as text instead?
+                  </button>
+                </div>
+              </>
+            )}
+
+            {showFallback && (
+              <div>
+                <div style={{
+                  background: 'rgba(201,168,76,0.07)',
+                  border: '1px solid rgba(201,168,76,0.2)',
+                  borderRadius: 8,
+                  padding: '8px 12px',
+                  marginBottom: 10,
+                  fontSize: 12,
+                  color: 'rgba(255,255,255,0.5)',
+                }}>
+                  Paste your full resume text below. The AI prompt will include it directly.
+                </div>
+                <textarea
+                  className="pt-input"
+                  rows={10}
+                  placeholder="Paste your full resume text here…"
+                  value={data.resumeText}
+                  onChange={e => setData(d => ({ ...d, resumeText: e.target.value }))}
+                />
+                <button
+                  style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.3)', fontSize: 12, cursor: 'pointer', textDecoration: 'underline', marginTop: 6 }}
+                  onClick={() => setShowFallback(false)}
+                >
+                  ← Back to PDF upload
+                </button>
+              </div>
+            )}
+          </div>
+
+          <NavButtons step={5} onBack={onBack} onNext={onNext} />
+        </div>
+      );
+    }
+
+    // ─── SCREEN 6: Generated Prompt ───────────────────────────────────────────
+    function Screen6({ data, onBack }) {
+      const [copied, setCopied] = useState(false);
+      const prompt = buildPrompt(data);
+
+      function copyPrompt() {
+        navigator.clipboard.writeText(prompt).then(() => {
+          setCopied(true);
+          setTimeout(() => setCopied(false), 2500);
+        }).catch(() => {
+          // Fallback for browsers that block clipboard
+          const ta = document.createElement('textarea');
+          ta.value = prompt;
+          document.body.appendChild(ta);
+          ta.select();
+          document.execCommand('copy');
+          document.body.removeChild(ta);
+          setCopied(true);
+          setTimeout(() => setCopied(false), 2500);
+        });
+      }
+
+      const skillList = ALL_SKILLS
+        .filter(s => data.selectedSkills.has(s.id))
+        .map(s => s.label);
+
+      return (
+        <div className="fade-up">
+          <div style={{ textAlign: 'center', marginBottom: 24 }}>
+            <div style={{ fontSize: 40, marginBottom: 8 }}>🎯</div>
+            <h2 style={{ color: '#fff', fontSize: 24, fontWeight: 800, marginBottom: 6 }}>
+              Your AI Review Prompt is Ready
+            </h2>
+            <p style={{ color: 'rgba(255,255,255,0.45)', fontSize: 14, lineHeight: 1.6, maxWidth: 480, margin: '0 auto' }}>
+              Copy the prompt below and paste it into Claude, ChatGPT, or any LLM.
+              {!data.resumeText && ' Attach your resume PDF before sending.'}
+            </p>
+          </div>
+
+          {/* Summary chips */}
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 20, justifyContent: 'center' }}>
+            {[
+              { label: 'Role', val: ROLE_LABELS[data.targetRole] },
+              { label: 'Experience', val: data.yearsExp },
+              { label: 'Skills', val: `${skillList.length} confirmed` },
+            ].map(chip => chip.val && (
+              <div key={chip.label} style={{
+                background: 'rgba(201,168,76,0.1)',
+                border: '1px solid rgba(201,168,76,0.25)',
+                borderRadius: 99,
+                padding: '4px 12px',
+                fontSize: 12,
+                color: '#c9a84c',
+                fontWeight: 600,
+              }}>
+                {chip.label}: {chip.val}
+              </div>
+            ))}
+          </div>
+
+          <div className="prompt-block">{prompt}</div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14, marginTop: 22 }}>
+            <button className={`btn-copy ${copied ? 'copied' : ''}`} onClick={copyPrompt}>
+              {copied ? '✓ Copied to clipboard!' : '📋 Copy Prompt'}
+            </button>
+
+            {!data.resumeText && (
+              <div style={{
+                background: 'rgba(255,107,107,0.08)',
+                border: '1px solid rgba(255,107,107,0.25)',
+                borderRadius: 8,
+                padding: '10px 16px',
+                fontSize: 12,
+                color: 'rgba(255,180,180,0.8)',
+                textAlign: 'center',
+                maxWidth: 400,
+              }}>
+                <strong>Reminder:</strong> Attach your resume PDF to the LLM conversation alongside this prompt for best results.
+              </div>
+            )}
+
+            <div style={{
+              background: 'rgba(255,255,255,0.03)',
+              border: '1px solid rgba(255,255,255,0.07)',
+              borderRadius: 10,
+              padding: '12px 18px',
+              fontSize: 13,
+              color: 'rgba(255,255,255,0.5)',
+              textAlign: 'center',
+              maxWidth: 420,
+              lineHeight: 1.55,
+            }}>
+              Works best with <strong style={{ color: 'rgba(255,255,255,0.75)' }}>Claude</strong>,{' '}
+              <strong style={{ color: 'rgba(255,255,255,0.75)' }}>ChatGPT-4o</strong>, or{' '}
+              <strong style={{ color: 'rgba(255,255,255,0.75)' }}>Gemini Advanced</strong>.
+              Start a new conversation and paste the prompt, then attach your PDF.
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', justifyContent: 'center', marginTop: 24 }}>
+            <button className="btn-secondary" onClick={onBack}>← Edit answers</button>
+          </div>
+        </div>
+      );
+    }
+
+    // ─── MAIN APP ─────────────────────────────────────────────────────────────
+    function App() {
+      const [step, setStep] = useState(1);
+      const [data, setData] = useState({
+        currentRole:      '',
+        yearsExp:         '',
+        targetRole:       '',
+        dealExperience:   '',
+        skillAnswers: {
+          excelFreq:         '',
+          finAnalysis:       '',
+          finModels:         '',
+          valuationMethods:  [],
+        },
+        selectedSkills: new Set(),
+        weakness:    '',
+        resumeText:  '',
+      });
+
+      const containerRef = useRef(null);
+
+      function scrollTop() {
+        if (containerRef.current) containerRef.current.scrollTop = 0;
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
+
+      function next() { setStep(s => Math.min(s + 1, TOTAL_STEPS)); scrollTop(); }
+      function back() { setStep(s => Math.max(s - 1, 1)); scrollTop(); }
+
+      return (
+        <div style={{
+          minHeight: '100vh',
+          background: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%)',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          padding: '24px 16px 48px',
+        }}>
+          {/* Header */}
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 10,
+            marginBottom: 28,
+            width: '100%',
+            maxWidth: 660,
+          }}>
+            <div style={{
+              background: 'linear-gradient(135deg, #c9a84c, #e8d5a3)',
+              borderRadius: 8,
+              width: 34,
+              height: 34,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: 16,
+              fontWeight: 900,
+              color: '#1a1a2e',
+              flexShrink: 0,
+            }}>P</div>
+            <div>
+              <div style={{ color: '#c9a84c', fontWeight: 800, fontSize: 15, letterSpacing: '0.02em' }}>
+                Prepped Talent
+              </div>
+              <div style={{ color: 'rgba(255,255,255,0.35)', fontSize: 11, fontWeight: 500 }}>
+                Resume Reviewer · Stage 1
+              </div>
+            </div>
+          </div>
+
+          {/* Card */}
+          <div
+            ref={containerRef}
+            className="glass-card"
+            style={{ width: '100%', maxWidth: 660, padding: '28px 28px 24px' }}
+          >
+            <ProgressBar step={step} />
+
+            {step === 1 && <Screen1 data={data} setData={setData} onNext={next} />}
+            {step === 2 && <Screen2 data={data} setData={setData} onBack={back} onNext={next} />}
+            {step === 3 && <Screen3 data={data} setData={setData} onBack={back} onNext={next} />}
+            {step === 4 && <Screen4 data={data} setData={setData} onBack={back} onNext={next} />}
+            {step === 5 && <Screen5 data={data} setData={setData} onBack={back} onNext={next} />}
+            {step === 6 && <Screen6 data={data} onBack={back} />}
+          </div>
+
+          {/* Footer */}
+          <div style={{ marginTop: 20, color: 'rgba(255,255,255,0.2)', fontSize: 11, textAlign: 'center' }}>
+            Your data never leaves this page. All processing is local.
+          </div>
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>

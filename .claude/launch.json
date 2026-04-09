@@ -1,0 +1,23 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "Oil Trade Tracker (Streamlit)",
+      "runtimeExecutable": "streamlit",
+      "runtimeArgs": ["run", "app/main.py"],
+      "port": 8501
+    },
+    {
+      "name": "Resume Reviewer (Static)",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["-m", "http.server", "8000", "--directory", "ai-career-tools"],
+      "port": 8000
+    },
+    {
+      "name": "Networking Dashboard (Static)",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["-m", "http.server", "8001", "--directory", "ai-career-tools"],
+      "port": 8001
+    }
+  ]
+}
