@@ -8,12 +8,19 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
   <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
-  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
-  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/react@18/umd/react.production.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
-  <script src="https://unpkg.com/recharts@2.15.3/umd/Recharts.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/prop-types@15.8.1/prop-types.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/recharts@2.15.3/umd/Recharts.js"></script>
+  <script>
+    // Fallback: if Recharts failed to load from jsdelivr, try unpkg
+    if (!window.Recharts) {
+      document.write('<script src="https://unpkg.com/recharts@2.15.3/umd/Recharts.js"><\/script>');
+    }
+  </script>
   <script>
     tailwind.config = {
       theme: {
@@ -129,9 +136,12 @@
 <div id="root"></div>
 
 <script type="text/babel">
+const _R = window.Recharts || {};
 const {
-  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer
-} = window.Recharts;
+  LineChart = () => null, Line = () => null, XAxis = () => null, YAxis = () => null,
+  CartesianGrid = () => null, Tooltip = () => null, Legend = () => null, ResponsiveContainer = ({children}) => children
+} = _R;
+if (!window.Recharts) console.warn('Recharts failed to load — charts will be disabled.');
 
 const { useState, useRef, useCallback, useEffect, useMemo } = React;
 
@@ -157,6 +167,20 @@ function weekKey(mondayDate) {
 
 function parseDate(str) {
   if (!str) return null;
+  // Handle LinkedIn's 2-digit year format: "3/16/26, 5:02 AM"
+  const liMatch = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2}),?\s*(.+)$/);
+  if (liMatch) {
+    const [, month, day, shortYear, time] = liMatch;
+    const year = parseInt(shortYear) < 70 ? 2000 + parseInt(shortYear) : 1900 + parseInt(shortYear);
+    const d = new Date(`${year}-${month.padStart(2,'0')}-${day.padStart(2,'0')} ${time.replace(' UTC','')}`);
+    return isNaN(d.getTime()) ? null : d;
+  }
+  // Handle "17 Mar 2026" format from Connections.csv
+  const connMatch = str.match(/^(\d{1,2})\s+(\w{3})\s+(\d{4})$/);
+  if (connMatch) {
+    const d = new Date(`${connMatch[2]} ${connMatch[1]}, ${connMatch[3]}`);
+    return isNaN(d.getTime()) ? null : d;
+  }
   const d = new Date(str);
   return isNaN(d.getTime()) ? null : d;
 }
@@ -314,8 +338,26 @@ function processData(invitations, messages, connections) {
   });
   const ME = Object.entries(senderCount).sort((a,b) => b[1]-a[1])[0]?.[0] || '';
 
+  // Build a set of connected names for acceptance matching
+  // Connections.csv has "First Name" + "Last Name", Invitations has "To" as full name
+  const connectedNames = new Set();
+  connections.forEach(c => {
+    const first = (c['First Name'] || '').trim();
+    const last = (c['Last Name'] || '').trim();
+    if (first || last) connectedNames.add(`${first} ${last}`.trim().toLowerCase());
+  });
+
+  // Filter to outgoing invitations only
+  const outgoing = invitations.filter(inv => {
+    const dir = (inv['Direction'] || inv['direction'] || '').toUpperCase();
+    // If no Direction column, check if From matches ME
+    if (dir) return dir === 'OUTGOING';
+    const from = inv['From'] || inv['from'] || '';
+    return from === ME || from.toLowerCase().includes('maitrya');
+  });
+
   const invByWeek = {};
-  invitations.forEach(inv => {
+  outgoing.forEach(inv => {
     const rawDate = inv['Sent At'] || inv['sent_at'] || inv['Date'] || '';
     const d = parseDate(rawDate);
     if (!d) return;
@@ -323,8 +365,19 @@ function processData(invitations, messages, connections) {
     const k = weekKey(mon);
     if (!invByWeek[k]) invByWeek[k] = { monday: mon, sent: [], accepted: [] };
     invByWeek[k].sent.push(inv);
+
+    // Check acceptance: if Status column exists, use it; otherwise match To name against Connections
     const status = (inv['Status'] || inv['status'] || '').toLowerCase();
-    if (status === 'accepted' || status === 'connected') invByWeek[k].accepted.push(inv);
+    if (status === 'accepted' || status === 'connected') {
+      invByWeek[k].accepted.push(inv);
+    } else if (!inv['Status'] && !inv['status']) {
+      // No Status column — check if the invitee appears in Connections
+      const toName = (inv['To'] || inv['to'] || '').trim().toLowerCase();
+      if (connectedNames.has(toName)) {
+        inv._accepted = true;
+        invByWeek[k].accepted.push(inv);
+      }
+    }
   });
 
   const msgByWeek = {};
@@ -573,10 +626,10 @@ function ActivityLog({ weekData }) {
           <span style={{ color: 'rgba(255,255,255,0.45)', fontSize: '0.78rem' }}>{inv['Company'] || inv['company'] || '\u2014'}</span>
           <span style={{
             fontSize: '0.72rem', fontWeight: 600, padding: '2px 8px', borderRadius: 999,
-            background: (inv['Status']||'').toLowerCase() === 'accepted' ? 'rgba(74,222,128,0.15)' : 'rgba(251,191,36,0.12)',
-            color: (inv['Status']||'').toLowerCase() === 'accepted' ? '#4ade80' : '#fbbf24',
+            background: ((inv['Status']||'').toLowerCase() === 'accepted' || inv._accepted) ? 'rgba(74,222,128,0.15)' : 'rgba(251,191,36,0.12)',
+            color: ((inv['Status']||'').toLowerCase() === 'accepted' || inv._accepted) ? '#4ade80' : '#fbbf24',
             textAlign: 'center', whiteSpace: 'nowrap'
-          }}>{inv['Status'] || 'Pending'}</span>
+          }}>{inv['Status'] || (inv._accepted ? 'Connected' : 'Pending')}</span>
           <span style={{ color: 'rgba(255,255,255,0.35)', fontSize: '0.75rem', textAlign: 'right' }}>
             {formatDate(inv['Sent At'] || inv['sent_at'] || '')}
           </span>
@@ -724,15 +777,24 @@ function UploadScreen({ onDataLoaded, onSampleData }) {
         return;
       }
 
-      const parseCSV = async (entry) => {
+      const parseCSV = async (entry, skipLines = 0) => {
         if (!entry) return [];
-        const text = await entry.async('text');
+        let text = await entry.async('text');
+        // Skip leading non-CSV lines (e.g., LinkedIn disclaimer in Connections.csv)
+        if (skipLines > 0) {
+          const lines = text.split('\n');
+          text = lines.slice(skipLines).join('\n');
+        }
         const result = Papa.parse(text, { header: true, skipEmptyLines: true });
         return result.data;
       };
 
+      // Connections.csv has a 3-line disclaimer header before the actual CSV
+      const connectionsText = connectionsEntry ? await connectionsEntry.async('text') : '';
+      const connSkip = connectionsText.startsWith('Notes:') ? 3 : 0;
+
       const [connections, messages, invitations] = await Promise.all([
-        parseCSV(connectionsEntry),
+        parseCSV(connectionsEntry, connSkip),
         parseCSV(messagesEntry),
         parseCSV(invitationsEntry),
       ]);
