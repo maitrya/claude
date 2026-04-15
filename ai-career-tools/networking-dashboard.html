@@ -13,14 +13,7 @@
   <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/prop-types@15.8.1/prop-types.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/recharts@2.15.3/umd/Recharts.js"></script>
-  <script>
-    // Fallback: if Recharts failed to load from jsdelivr, try unpkg
-    if (!window.Recharts) {
-      document.write('<script src="https://unpkg.com/recharts@2.15.3/umd/Recharts.js"><\/script>');
-    }
-  </script>
+  <script src="https://cdn.plot.ly/plotly-2.32.0.min.js"></script>
   <script>
     tailwind.config = {
       theme: {
@@ -32,1127 +25,621 @@
             gold: '#c9a84c',
             'gold-light': '#e8c97e',
           },
-          fontFamily: {
-            inter: ['Inter', 'sans-serif'],
-          },
+          fontFamily: { inter: ['Inter', 'sans-serif'] },
         },
       },
     };
   </script>
   <style>
     * { box-sizing: border-box; }
-    body {
-      background-color: #1a1a2e;
-      font-family: 'Inter', sans-serif;
-      margin: 0;
-      padding: 0;
-      min-height: 100vh;
-    }
-    .glass-card {
-      background: rgba(15, 52, 96, 0.45);
-      backdrop-filter: blur(16px);
-      -webkit-backdrop-filter: blur(16px);
-      border: 1px solid rgba(201, 168, 76, 0.18);
-      border-radius: 16px;
-    }
-    .glass-card-dark {
-      background: rgba(10, 25, 50, 0.6);
-      backdrop-filter: blur(12px);
-      -webkit-backdrop-filter: blur(12px);
-      border: 1px solid rgba(255,255,255,0.07);
-      border-radius: 12px;
-    }
-    .gold-gradient {
-      background: linear-gradient(135deg, #c9a84c, #e8c97e);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      background-clip: text;
-    }
-    .gold-border {
-      border: 1px solid rgba(201, 168, 76, 0.4);
-    }
-    .drop-zone-active {
-      border-color: #c9a84c !important;
-      background: rgba(201, 168, 76, 0.08) !important;
-    }
-    .tab-active {
-      border-bottom: 2px solid #c9a84c;
-      color: #c9a84c;
-    }
-    .tab-inactive {
-      border-bottom: 2px solid transparent;
-      color: rgba(255,255,255,0.5);
-    }
-    .tab-inactive:hover {
-      color: rgba(255,255,255,0.8);
-    }
-    .progress-bar-bg {
-      background: rgba(255,255,255,0.08);
-      border-radius: 999px;
-      height: 8px;
-      width: 100%;
-    }
-    .progress-bar-fill {
-      height: 8px;
-      border-radius: 999px;
-      background: linear-gradient(90deg, #c9a84c, #e8c97e);
-      transition: width 0.8s ease;
-    }
-    .progress-bar-benchmark {
-      background: rgba(255,255,255,0.25);
-    }
-    .spinner {
-      border: 3px solid rgba(201,168,76,0.2);
-      border-top: 3px solid #c9a84c;
-      border-radius: 50%;
-      width: 40px;
-      height: 40px;
-      animation: spin 0.8s linear infinite;
-    }
-    @keyframes spin { to { transform: rotate(360deg); } }
-    .metric-icon {
-      width: 44px;
-      height: 44px;
-      border-radius: 12px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 20px;
-    }
-    .delta-up { color: #4ade80; }
-    .delta-down { color: #f87171; }
-    .delta-neutral { color: rgba(255,255,255,0.4); }
-    ::-webkit-scrollbar { width: 6px; }
-    ::-webkit-scrollbar-track { background: rgba(255,255,255,0.04); }
-    ::-webkit-scrollbar-thumb { background: rgba(201,168,76,0.3); border-radius: 3px; }
-    select option { background: #16213e; color: white; }
-    .recharts-tooltip-wrapper { z-index: 50; }
-    .log-row:hover { background: rgba(201,168,76,0.06); }
-    .collapsible-enter { max-height: 0; overflow: hidden; transition: max-height 0.35s ease; }
-    .collapsible-open { max-height: 9999px; transition: max-height 0.5s ease; }
+    body { background-color: #1a1a2e; font-family: 'Inter', sans-serif; margin: 0; padding: 0; min-height: 100vh; }
+    .glass-card { background: rgba(15,52,96,0.45); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); border: 1px solid rgba(201,168,76,0.18); border-radius: 16px; }
+    .glass-card-dark { background: rgba(10,20,40,0.6); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border: 1px solid rgba(201,168,76,0.12); border-radius: 12px; }
+    .gradient-text { background: linear-gradient(135deg, #c9a84c, #e8c97e); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+    .drop-zone { border: 2px dashed rgba(201,168,76,0.4); border-radius: 16px; transition: all 0.3s ease; }
+    .drop-zone:hover, .drop-zone.drag-over { border-color: #c9a84c; background: rgba(201,168,76,0.08); }
+    .tab-btn { transition: all 0.2s ease; }
+    .tab-btn.active { background: linear-gradient(135deg, #c9a84c, #e8c97e); color: #1a1a2e; font-weight: 700; }
+    .tab-btn:not(.active) { color: rgba(255,255,255,0.6); }
+    .tab-btn:not(.active):hover { color: #c9a84c; background: rgba(201,168,76,0.1); }
+    .toggle-btn { transition: all 0.2s ease; }
+    .toggle-btn.active { background: rgba(201,168,76,0.25); color: #e8c97e; border-color: #c9a84c; }
+    .toggle-btn:not(.active) { color: rgba(255,255,255,0.4); border-color: rgba(255,255,255,0.15); }
+    .metric-card-border { border-left: 4px solid; }
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: rgba(255,255,255,0.05); border-radius: 3px; }
+    ::-webkit-scrollbar-thumb { background: rgba(201,168,76,0.4); border-radius: 3px; }
+    .sparkline-wrap { width: 100%; height: 56px; }
+    .checkbox-catchup { accent-color: #c9a84c; width: 16px; height: 16px; cursor: pointer; }
   </style>
 </head>
 <body>
 <div id="root"></div>
 
 <script type="text/babel">
-const _R = window.Recharts || {};
-const {
-  LineChart = () => null, Line = () => null, XAxis = () => null, YAxis = () => null,
-  CartesianGrid = () => null, Tooltip = () => null, Legend = () => null, ResponsiveContainer = ({children}) => children
-} = _R;
-if (!window.Recharts) console.warn('Recharts failed to load — charts will be disabled.');
+const { useState, useEffect, useRef, useMemo, useCallback } = React;
 
-const { useState, useRef, useCallback, useEffect, useMemo } = React;
+// ─── Constants ───────────────────────────────────────────────────────────────
+const BENCHMARKS = { requestsSent: 20, acceptanceRate: 40, messagesSent: 20, catchupsBooked: 2 };
 
-// ─── Helpers ────────────────────────────────────────────────────────────────
+const QUARTILE_CONFIG = {
+  requestsSent: [
+    { max: 10,       q: 'Q1', label: 'Below target',    color: '#ef4444' },
+    { max: 20,       q: 'Q2', label: 'Getting there',   color: '#f59e0b' },
+    { max: 30,       q: 'Q3', label: 'On target',       color: '#eab308' },
+    { max: Infinity, q: 'Q4', label: 'Exceeding target',color: '#22c55e' },
+  ],
+  acceptanceRate: [
+    { max: 20,       q: 'Q1', label: 'Below target',    color: '#ef4444' },
+    { max: 40,       q: 'Q2', label: 'Getting there',   color: '#f59e0b' },
+    { max: 60,       q: 'Q3', label: 'On target',       color: '#eab308' },
+    { max: Infinity, q: 'Q4', label: 'Exceeding target',color: '#22c55e' },
+  ],
+  messagesSent: [
+    { max: 10,       q: 'Q1', label: 'Below target',    color: '#ef4444' },
+    { max: 20,       q: 'Q2', label: 'Getting there',   color: '#f59e0b' },
+    { max: 30,       q: 'Q3', label: 'On target',       color: '#eab308' },
+    { max: Infinity, q: 'Q4', label: 'Exceeding target',color: '#22c55e' },
+  ],
+  catchupsBooked: [
+    { max: 0,        q: 'Q1', label: 'Below target',    color: '#ef4444' },
+    { max: 1,        q: 'Q2', label: 'Getting there',   color: '#f59e0b' },
+    { max: 2,        q: 'Q3', label: 'On target',       color: '#eab308' },
+    { max: Infinity, q: 'Q4', label: 'Exceeding target',color: '#22c55e' },
+  ],
+};
 
-function getMondayOf(date) {
-  const d = new Date(date);
-  const day = d.getDay();
-  const diff = (day === 0 ? -6 : 1 - day);
-  d.setDate(d.getDate() + diff);
-  d.setHours(0, 0, 0, 0);
-  return d;
+function getQuartile(metricKey, value) {
+  const bands = QUARTILE_CONFIG[metricKey];
+  if (!bands) return { q: 'Q2', label: 'Getting there', color: '#f59e0b' };
+  return bands.find(b => value <= b.max) || bands[bands.length - 1];
 }
 
-function formatWeekLabel(mondayDate) {
-  const d = new Date(mondayDate);
-  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-}
-
-function weekKey(mondayDate) {
-  return new Date(mondayDate).toISOString().slice(0, 10);
-}
-
-function parseDate(str) {
+// ─── CSV / ZIP Parsing ────────────────────────────────────────────────────────
+function parseLinkedInDate(str) {
   if (!str) return null;
-  // Handle LinkedIn's 2-digit year format: "3/16/26, 5:02 AM"
-  const liMatch = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2}),?\s*(.+)$/);
-  if (liMatch) {
-    const [, month, day, shortYear, time] = liMatch;
-    const year = parseInt(shortYear) < 70 ? 2000 + parseInt(shortYear) : 1900 + parseInt(shortYear);
-    const d = new Date(`${year}-${month.padStart(2,'0')}-${day.padStart(2,'0')} ${time.replace(' UTC','')}`);
-    return isNaN(d.getTime()) ? null : d;
-  }
-  // Handle "17 Mar 2026" format from Connections.csv
-  const connMatch = str.match(/^(\d{1,2})\s+(\w{3})\s+(\d{4})$/);
-  if (connMatch) {
-    const d = new Date(`${connMatch[2]} ${connMatch[1]}, ${connMatch[3]}`);
-    return isNaN(d.getTime()) ? null : d;
-  }
-  const d = new Date(str);
-  return isNaN(d.getTime()) ? null : d;
+  const s = str.trim();
+  const formats = [
+    /^(\d{2})\/(\d{2})\/(\d{4})$/,
+    /^(\d{4})-(\d{2})-(\d{2})/,
+    /^(\w+)\s+(\d{1,2}),\s+(\d{4})/,
+  ];
+  let d = new Date(s);
+  if (!isNaN(d)) return d;
+  const [, m, day, y] = (s.match(formats[0]) || []);
+  if (y) return new Date(parseInt(y), parseInt(m)-1, parseInt(day));
+  return null;
 }
 
-const CATCHUP_KEYWORDS = [
-  "let's catch up","lets catch up","catch up","grab coffee",
-  "hop on a call","schedule a call","book a time","calendly",
-  "zoom link","looking forward to chatting","confirmed for","talk on"
-];
-
-function hasCatchupKeyword(text) {
-  if (!text) return false;
-  const lower = text.toLowerCase();
-  return CATCHUP_KEYWORDS.some(k => lower.includes(k));
+function getWeekKey(date) {
+  const d = new Date(date);
+  d.setHours(0,0,0,0);
+  d.setDate(d.getDate() - d.getDay() + 1);
+  return d.toISOString().slice(0,10);
 }
 
-// ─── Sample Data Generator ──────────────────────────────────────────────────
+function stripLinkedInHeader(rows) {
+  const idx = rows.findIndex(r => Object.keys(r).some(k => k && k.trim().length > 0 && !k.startsWith('Notes') && !k.startsWith('This') && !k.startsWith('You')));
+  if (idx > 0) return rows.slice(idx);
+  return rows;
+}
 
-function generateSampleData() {
-  const today = new Date('2026-04-06');
-  const monday = getMondayOf(today);
+async function parseZip(file) {
+  const zip = await JSZip.loadAsync(file);
+  const result = { connections: [], invitations: [], messages: [] };
 
-  const weeks = [];
-  for (let i = 7; i >= 0; i--) {
-    const d = new Date(monday);
-    d.setDate(d.getDate() - i * 7);
-    weeks.push(new Date(d));
+  for (const [name, entry] of Object.entries(zip.files)) {
+    const lower = name.toLowerCase();
+    if (lower.endsWith('.csv')) {
+      const text = await entry.async('string');
+      const parsed = Papa.parse(text, { header: true, skipEmptyLines: true });
+      let rows = parsed.data;
+
+      if (lower.includes('connection')) {
+        rows = stripLinkedInHeader(rows);
+        result.connections = rows.map(r => ({
+          name: (r['First Name'] || '') + ' ' + (r['Last Name'] || ''),
+          company: r['Company'] || r['company'] || '',
+          position: r['Position'] || r['position'] || '',
+          connectedOn: parseLinkedInDate(r['Connected On'] || r['connected_on'] || r['Date']),
+        })).filter(r => r.connectedOn);
+      } else if (lower.includes('invitation')) {
+        rows = stripLinkedInHeader(rows);
+        result.invitations = rows.map(r => ({
+          direction: (r['Direction'] || r['direction'] || '').toLowerCase(),
+          sentAt: parseLinkedInDate(r['Sent At'] || r['sent_at'] || r['Date']),
+        })).filter(r => r.sentAt);
+      } else if (lower.includes('message')) {
+        rows = stripLinkedInHeader(rows);
+        result.messages = rows.map(r => ({
+          from: r['FROM'] || r['From'] || r['from'] || '',
+          to: r['TO'] || r['To'] || r['to'] || '',
+          date: parseLinkedInDate(r['DATE'] || r['Date'] || r['date']),
+          subject: r['SUBJECT'] || r['Subject'] || r['subject'] || '',
+          content: r['CONTENT'] || r['Content'] || r['content'] || '',
+        })).filter(r => r.date);
+      }
+    }
   }
+  return result;
+}
 
-  const names = [
-    'Alex Johnson','Maria Garcia','Chris Lee','Taylor Brown','Jordan Smith',
-    'Sam Wilson','Casey Martinez','Morgan Davis','Riley Thompson','Drew Anderson',
-    'Quinn Harris','Avery Clark','Blake Robinson','Reese Walker','Skyler Hall',
-    'Cameron Young','Peyton Wright','Finley Lewis','Emery Scott','Hayden Green'
-  ];
+function aggregateByWeek(data, myName) {
+  const weeks = {};
 
-  const companies = [
-    'Goldman Sachs','McKinsey','Bain & Company','JPMorgan','Morgan Stanley',
-    'BCG','Deloitte','EY','KPMG','PwC','Blackstone','KKR','Apollo','Citadel','Bridgewater'
-  ];
+  const ensureWeek = (key) => {
+    if (!weeks[key]) weeks[key] = { key, label: '', requestsSent: 0, accepted: 0, totalSent: 0, messagesSent: 0, connections: [], messages: [] };
+  };
 
-  const ME = 'Alex Chen';
-  const rand = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
-  const pick = arr => arr[Math.floor(Math.random() * arr.length)];
-
-  const weeklyStats = weeks.map((monday, wi) => {
-    const sent = rand(15, 30);
-    const accepted = Math.round(sent * (rand(70, 85) / 100));
-    const messages = rand(20, 50);
-    const catchups = rand(2, 5);
-    return { monday, sent, accepted, messages, catchups };
-  });
-
-  const invitations = [];
-  const messages = [];
-
-  weeklyStats.forEach(({ monday, sent, accepted }) => {
-    for (let i = 0; i < sent; i++) {
-      const sentDate = new Date(monday);
-      sentDate.setDate(sentDate.getDate() + rand(0, 6));
-      const toName = pick(names);
-      const status = i < accepted ? 'Accepted' : 'Pending';
-      invitations.push({
-        'From': ME,
-        'To': toName,
-        'Sent At': sentDate.toISOString(),
-        'Status': status,
-        'Company': pick(companies),
-      });
+  // Invitations sent
+  data.invitations.forEach(inv => {
+    if (!inv.sentAt) return;
+    const wk = getWeekKey(inv.sentAt);
+    ensureWeek(wk);
+    if (inv.direction === 'sent' || inv.direction === 'outgoing') {
+      weeks[wk].requestsSent++;
+      weeks[wk].totalSent++;
+    } else if (inv.direction === 'received' || inv.direction === 'incoming') {
+      // accepted if they connected
     }
   });
 
-  const catchupMessages = [
-    "Would love to catch up over coffee sometime!",
-    "Let's hop on a call to discuss your experience.",
-    "Happy to grab coffee and chat about your journey.",
-    "Schedule a call with me via my Calendly link.",
-    "Looking forward to chatting with you next week!",
-    "Confirmed for Thursday — zoom link below.",
-    "Let's catch up — I'll send a calendar invite.",
-    "Can we book a time to talk on a call?",
-  ];
+  // Connections — accepted inbound mapped by connection date
+  data.connections.forEach(c => {
+    if (!c.connectedOn) return;
+    const wk = getWeekKey(c.connectedOn);
+    ensureWeek(wk);
+    weeks[wk].connections.push(c);
+  });
 
-  const regularMessages = [
-    "Hi, I came across your profile and was impressed by your background.",
-    "I'd love to learn more about your experience in investment banking.",
-    "Thank you for connecting! Would love to hear about your role.",
-    "Great to connect — your work at {company} sounds fascinating.",
-    "I'm exploring opportunities in M&A and would love your insights.",
-    "Your career path is really inspiring — any advice for someone starting out?",
-    "I noticed we share mutual connections at {company}.",
-    "I'm a student interested in finance — would appreciate any guidance.",
-    "Congratulations on your recent promotion!",
-    "I enjoyed your recent post about deal flow — very insightful.",
-  ];
-
-  weeklyStats.forEach(({ monday, messages: msgCount, catchups }) => {
-    const contactPool = invitations
-      .filter(inv => inv['Status'] === 'Accepted')
-      .map(inv => inv['To']);
-
-    for (let i = 0; i < msgCount; i++) {
-      const msgDate = new Date(monday);
-      msgDate.setDate(msgDate.getDate() + rand(0, 6));
-      msgDate.setHours(rand(8, 20), rand(0, 59));
-
-      const isCatchup = i < catchups;
-      const contact = pick(contactPool.length ? contactPool : names);
-      const body = isCatchup
-        ? pick(catchupMessages)
-        : pick(regularMessages).replace('{company}', pick(companies));
-
-      messages.push({
-        'FROM': ME,
-        'TO': contact,
-        'DATE': msgDate.toISOString(),
-        'CONTENT': body,
-        'CONVERSATION ID': `conv_${monday.toISOString().slice(0,10)}_${i}`,
-      });
-
-      if (isCatchup) {
-        const replyDate = new Date(msgDate);
-        replyDate.setDate(replyDate.getDate() + rand(0, 2));
-        replyDate.setHours(rand(9, 18), rand(0, 59));
-        messages.push({
-          'FROM': contact,
-          'TO': ME,
-          'DATE': replyDate.toISOString(),
-          'CONTENT': "Sounds great! I'd love that. Let me check my calendar.",
-          'CONVERSATION ID': `conv_${monday.toISOString().slice(0,10)}_${i}`,
-        });
+  // Messages sent by me
+  const myLower = (myName || '').toLowerCase().trim();
+  data.messages.forEach(m => {
+    if (!m.date) return;
+    const fromLower = (m.from || '').toLowerCase().trim();
+    const isMe = myLower ? fromLower.includes(myLower) || myLower.includes(fromLower) : false;
+    if (isMe || !myLower) {
+      const wk = getWeekKey(m.date);
+      ensureWeek(wk);
+      if (isMe) {
+        weeks[wk].messagesSent++;
+        weeks[wk].messages.push(m);
       }
     }
   });
 
-  const connections = invitations
-    .filter(inv => inv['Status'] === 'Accepted')
-    .map(inv => ({
-      'First Name': inv['To'].split(' ')[0],
-      'Last Name': inv['To'].split(' ').slice(1).join(' '),
-      'Company': inv['Company'],
-      'Connected On': inv['Sent At'],
+  // Sort by key, label with week-of
+  const sorted = Object.values(weeks).sort((a,b) => a.key.localeCompare(b.key));
+  sorted.forEach(w => {
+    const d = new Date(w.key);
+    w.label = `${d.toLocaleDateString('en-AU', { day:'numeric', month:'short' })}`;
+    // Acceptance rate: accepted / sent (simplified: use connection count as proxy)
+    w.acceptanceRate = w.requestsSent > 0 ? Math.round((w.connections.length / w.requestsSent) * 100) : 0;
+    w.catchupsBooked = 0; // will be set from manual checkboxes
+  });
+
+  return sorted.slice(-12); // last 12 weeks
+}
+
+function buildSampleData() {
+  const weeks = [];
+  const now = new Date();
+  for (let i = 11; i >= 0; i--) {
+    const d = new Date(now);
+    d.setDate(d.getDate() - i * 7);
+    const wk = getWeekKey(d);
+    const label = d.toLocaleDateString('en-AU', { day:'numeric', month:'short' });
+    const requestsSent = Math.floor(Math.random() * 15) + 12;
+    const accepted = Math.floor(requestsSent * (0.3 + Math.random() * 0.35));
+    const messagesSent = Math.floor(Math.random() * 15) + 12;
+    const catchupsBooked = Math.floor(Math.random() * 3);
+    weeks.push({
+      key: wk, label,
+      requestsSent,
+      accepted,
+      totalSent: requestsSent,
+      acceptanceRate: Math.round((accepted / requestsSent) * 100),
+      messagesSent,
+      catchupsBooked,
+      connections: [],
+      messages: Array.from({ length: messagesSent }, (_, j) => ({
+        from: 'Me', to: `Contact ${j+1}`, date: d,
+        subject: 'Following up', content: 'Hey, just wanted to connect!',
+      })),
+    });
+  }
+  return weeks;
+}
+
+// ─── Sparkline ───────────────────────────────────────────────────────────────
+function Sparkline({ data, color }) {
+  const ref = useRef(null);
+  useEffect(() => {
+    if (!ref.current || !window.Plotly || !data || data.length < 2) return;
+    const el = ref.current;
+    window.Plotly.newPlot(el, [{
+      x: data.map((_,i) => i),
+      y: data,
+      type: 'scatter',
+      mode: 'lines',
+      line: { color, width: 2, shape: 'spline' },
+      fill: 'tozeroy',
+      fillcolor: color.replace(')', ',0.15)').replace('rgb(', 'rgba(').replace('#', 'rgba(').replace(/rgba\(([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2}),0\.15\)/, (_,r,g,b) => `rgba(${parseInt(r,16)},${parseInt(g,16)},${parseInt(b,16)},0.15)`),
+      hoverinfo: 'none',
+    }], {
+      margin: { t:0, b:0, l:0, r:0 },
+      paper_bgcolor: 'rgba(0,0,0,0)',
+      plot_bgcolor: 'rgba(0,0,0,0)',
+      xaxis: { visible: false, fixedrange: true },
+      yaxis: { visible: false, fixedrange: true },
+      showlegend: false,
+    }, { displayModeBar: false, staticPlot: true, responsive: true });
+    return () => { try { window.Plotly.purge(el); } catch(e) {} };
+  }, [data, color]);
+  return <div ref={ref} className="sparkline-wrap" />;
+}
+
+// ─── Main Chart (Plotly) ──────────────────────────────────────────────────────
+function MainChart({ weekData, showRolling }) {
+  const ref = useRef(null);
+  useEffect(() => {
+    if (!ref.current || !window.Plotly || !weekData || weekData.length === 0) return;
+    const el = ref.current;
+    const labels = weekData.map(w => w.label);
+    const gold = '#c9a84c';
+    const traces = [
+      { name: 'Requests Sent', y: weekData.map(w => w.requestsSent), marker: { color: '#60a5fa' } },
+      { name: 'Acceptance %', y: weekData.map(w => w.acceptanceRate), marker: { color: gold } },
+      { name: 'Messages Sent', y: weekData.map(w => w.messagesSent), marker: { color: '#a78bfa' } },
+      { name: 'Catch-ups',     y: weekData.map(w => w.catchupsBooked), marker: { color: '#34d399' } },
+    ].map(t => ({
+      ...t, x: labels, type: 'scatter', mode: 'lines+markers',
+      line: { width: 2.5, shape: 'spline', color: t.marker.color },
+      marker: { size: 6, color: t.marker.color },
     }));
 
-  return { invitations, messages, connections, ME };
+    // Benchmark lines
+    const benchmarkLines = Object.entries(BENCHMARKS).map(([k, v], i) => ({
+      x: [labels[0], labels[labels.length-1]],
+      y: [v, v],
+      mode: 'lines',
+      line: { dash: 'dot', width: 1, color: ['#60a5fa','#c9a84c','#a78bfa','#34d399'][i] },
+      showlegend: false,
+      hoverinfo: 'skip',
+    }));
+
+    window.Plotly.newPlot(el, [...traces, ...benchmarkLines], {
+      paper_bgcolor: 'rgba(0,0,0,0)',
+      plot_bgcolor: 'rgba(0,0,0,0)',
+      font: { family: 'Inter, sans-serif', color: 'rgba(255,255,255,0.7)', size: 11 },
+      margin: { t: 20, b: 50, l: 40, r: 20 },
+      legend: { orientation: 'h', y: -0.25, font: { color: 'rgba(255,255,255,0.7)' } },
+      xaxis: { gridcolor: 'rgba(255,255,255,0.06)', tickfont: { color: 'rgba(255,255,255,0.5)', size: 10 }, zeroline: false },
+      yaxis: { gridcolor: 'rgba(255,255,255,0.06)', tickfont: { color: 'rgba(255,255,255,0.5)', size: 10 }, zeroline: false },
+      hovermode: 'x unified',
+    }, { displayModeBar: false, responsive: true });
+
+    return () => { try { window.Plotly.purge(el); } catch(e) {} };
+  }, [weekData]);
+
+  return <div ref={ref} style={{ width: '100%', height: 280 }} />;
 }
 
-// ─── Data Processing ─────────────────────────────────────────────────────────
-
-function processData(invitations, messages, connections) {
-  const senderCount = {};
-  messages.forEach(m => {
-    const from = m['FROM'] || m['From'] || '';
-    if (from) senderCount[from] = (senderCount[from] || 0) + 1;
-  });
-  const ME = Object.entries(senderCount).sort((a,b) => b[1]-a[1])[0]?.[0] || '';
-
-  // Build a set of connected names for acceptance matching
-  // Connections.csv has "First Name" + "Last Name", Invitations has "To" as full name
-  const connectedNames = new Set();
-  connections.forEach(c => {
-    const first = (c['First Name'] || '').trim();
-    const last = (c['Last Name'] || '').trim();
-    if (first || last) connectedNames.add(`${first} ${last}`.trim().toLowerCase());
-  });
-
-  // Filter to outgoing invitations only
-  const outgoing = invitations.filter(inv => {
-    const dir = (inv['Direction'] || inv['direction'] || '').toUpperCase();
-    // If no Direction column, check if From matches ME
-    if (dir) return dir === 'OUTGOING';
-    const from = inv['From'] || inv['from'] || '';
-    return from === ME || from.toLowerCase().includes('maitrya');
-  });
-
-  const invByWeek = {};
-  outgoing.forEach(inv => {
-    const rawDate = inv['Sent At'] || inv['sent_at'] || inv['Date'] || '';
-    const d = parseDate(rawDate);
-    if (!d) return;
-    const mon = getMondayOf(d);
-    const k = weekKey(mon);
-    if (!invByWeek[k]) invByWeek[k] = { monday: mon, sent: [], accepted: [] };
-    invByWeek[k].sent.push(inv);
-
-    // Check acceptance: if Status column exists, use it; otherwise match To name against Connections
-    const status = (inv['Status'] || inv['status'] || '').toLowerCase();
-    if (status === 'accepted' || status === 'connected') {
-      invByWeek[k].accepted.push(inv);
-    } else if (!inv['Status'] && !inv['status']) {
-      // No Status column — check if the invitee appears in Connections
-      const toName = (inv['To'] || inv['to'] || '').trim().toLowerCase();
-      if (connectedNames.has(toName)) {
-        inv._accepted = true;
-        invByWeek[k].accepted.push(inv);
-      }
-    }
-  });
-
-  const msgByWeek = {};
-  messages.forEach(msg => {
-    const rawDate = msg['DATE'] || msg['Date'] || msg['date'] || '';
-    const d = parseDate(rawDate);
-    if (!d) return;
-    const mon = getMondayOf(d);
-    const k = weekKey(mon);
-    if (!msgByWeek[k]) msgByWeek[k] = { monday: mon, userMsgs: [], allMsgs: [] };
-    msgByWeek[k].allMsgs.push(msg);
-    const from = msg['FROM'] || msg['From'] || '';
-    if (from === ME) msgByWeek[k].userMsgs.push(msg);
-  });
-
-  function detectCatchups(allMsgs) {
-    const convMap = {};
-    allMsgs.forEach(m => {
-      const cid = m['CONVERSATION ID'] || m['Conversation ID'] || m['conversation_id'] || '';
-      if (!convMap[cid]) convMap[cid] = [];
-      convMap[cid].push(m);
-    });
-
-    let catchupMsgs = [];
-    Object.values(convMap).forEach(thread => {
-      const sorted = [...thread].sort((a,b) => {
-        const da = parseDate(a['DATE']||a['Date']||'');
-        const db = parseDate(b['DATE']||b['Date']||'');
-        return (da||0) - (db||0);
-      });
-      for (let i = 0; i < sorted.length - 1; i++) {
-        const msg = sorted[i];
-        const from = msg['FROM'] || msg['From'] || '';
-        const content = msg['CONTENT'] || msg['Content'] || msg['content'] || '';
-        if (from === ME && hasCatchupKeyword(content)) {
-          const nextMsg = sorted[i+1];
-          const nextFrom = nextMsg['FROM'] || nextMsg['From'] || '';
-          if (nextFrom !== ME) {
-            catchupMsgs.push(msg);
-            break;
-          }
-        }
-      }
-    });
-    return catchupMsgs;
-  }
-
-  const allKeys = new Set([...Object.keys(invByWeek), ...Object.keys(msgByWeek)]);
-  const weeks = Array.from(allKeys).sort();
-
-  const weekData = weeks.map(k => {
-    const inv = invByWeek[k] || { monday: new Date(k), sent: [], accepted: [] };
-    const msg = msgByWeek[k] || { monday: new Date(k), userMsgs: [], allMsgs: [] };
-    const monday = inv.monday || msg.monday;
-    const catchupList = detectCatchups(msg.allMsgs);
-
-    return {
-      key: k,
-      monday,
-      label: `Week of ${formatWeekLabel(monday)}`,
-      shortLabel: new Date(monday).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-      requestsSent: inv.sent.length,
-      accepted: inv.accepted.length,
-      acceptanceRate: inv.sent.length > 0 ? Math.round((inv.accepted.length / inv.sent.length) * 100) : 0,
-      messagesSent: msg.userMsgs.length,
-      catchupsBooked: catchupList.length,
-      invitations: inv.sent,
-      messages: msg.userMsgs,
-      catchups: catchupList,
-      allMessages: msg.allMsgs,
-    };
-  });
-
-  return { weekData, ME };
-}
-
-// ─── Icons ───────────────────────────────────────────────────────────────────
-
-const IconSend = () => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="22" height="22">
-    <line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>
-  </svg>
-);
-const IconCheck = () => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="22" height="22">
-    <polyline points="20 6 9 17 4 12"/>
-  </svg>
-);
-const IconMsg = () => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="22" height="22">
-    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
-  </svg>
-);
-const IconCalendar = () => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="22" height="22">
-    <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
-  </svg>
-);
-const IconUpload = () => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="48" height="48">
-    <polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/>
-  </svg>
-);
-const IconChevron = ({ open }) => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="18" height="18"
-    style={{ transform: open ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.3s' }}>
-    <polyline points="6 9 12 15 18 9"/>
-  </svg>
-);
-const IconZip = () => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="20" height="20">
-    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-    <polyline points="14 2 14 8 20 8"/>
-    <line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/>
-  </svg>
-);
-
-// ─── MetricCard ───────────────────────────────────────────────────────────────
-
-function MetricCard({ label, value, delta, icon, iconBg, suffix = '', isRate = false }) {
-  const deltaNum = typeof delta === 'number' ? delta : 0;
-  const deltaDisplay = isRate
-    ? `${deltaNum >= 0 ? '+' : ''}${deltaNum}%`
-    : `${deltaNum >= 0 ? '+' : ''}${deltaNum}`;
-  const deltaClass = deltaNum > 0 ? 'delta-up' : deltaNum < 0 ? 'delta-down' : 'delta-neutral';
+// ─── Metric Card ─────────────────────────────────────────────────────────────
+function MetricCard({ title, value, suffix, metricKey, sparkData, benchmark }) {
+  const quartile = getQuartile(metricKey, value);
+  const pct = Math.min(100, Math.round((value / benchmark) * 100));
 
   return (
-    <div className="glass-card p-5 flex flex-col gap-3">
-      <div className="flex items-start justify-between">
-        <div>
-          <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: '0.78rem', fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.08em' }}>{label}</p>
-          <p style={{ fontSize: '2.4rem', fontWeight: 800, color: '#fff', lineHeight: 1.1, marginTop: 4 }}>
-            {value}{suffix}
-          </p>
-        </div>
-        <div className="metric-icon" style={{ background: iconBg }}>
-          {icon}
-        </div>
+    <div className="glass-card p-4 metric-card-border" style={{ borderColor: quartile.color }}>
+      <div className="flex items-start justify-between mb-1">
+        <span style={{ color: 'rgba(255,255,255,0.55)', fontSize: 11, fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase' }}>{title}</span>
+        <span style={{
+          background: quartile.color + '22',
+          color: quartile.color,
+          border: `1px solid ${quartile.color}44`,
+          borderRadius: 6,
+          padding: '1px 6px',
+          fontSize: 10,
+          fontWeight: 700,
+        }}>{quartile.q}</span>
       </div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-        <span className={deltaClass} style={{ fontSize: '0.85rem', fontWeight: 600 }}>{deltaDisplay}</span>
-        <span style={{ color: 'rgba(255,255,255,0.35)', fontSize: '0.78rem' }}>vs prior week</span>
+      <div className="flex items-end gap-1 mt-1">
+        <span style={{ fontSize: 28, fontWeight: 800, color: '#fff', lineHeight: 1 }}>{value}</span>
+        {suffix && <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.45)', marginBottom: 3 }}>{suffix}</span>}
       </div>
+      <div style={{ color: quartile.color, fontSize: 11, marginTop: 2, marginBottom: 4 }}>{quartile.label}</div>
+      <div style={{ height: 4, borderRadius: 4, background: 'rgba(255,255,255,0.08)', margin: '6px 0' }}>
+        <div style={{ height: '100%', borderRadius: 4, background: quartile.color, width: pct + '%', transition: 'width 0.5s ease' }} />
+      </div>
+      <div style={{ color: 'rgba(255,255,255,0.3)', fontSize: 10 }}>Benchmark: {benchmark}{suffix || ''}</div>
+      <Sparkline data={sparkData} color={quartile.color} />
     </div>
   );
 }
 
-// ─── PeerComparison ───────────────────────────────────────────────────────────
+// ─── Activity Log ─────────────────────────────────────────────────────────────
+function ActivityLog({ weekData, onCatchupsChange }) {
+  const [activeTab, setActiveTab] = useState('connections');
+  const [manualCatchups, setManualCatchups] = useState({});
 
-function PeerComparison({ weekData }) {
-  if (!weekData) return null;
+  // Reset checkboxes when week changes
+  useEffect(() => { setManualCatchups({}); }, [weekData?.key]);
 
-  const benchmarks = [
-    { label: 'Requests Sent', userVal: weekData.requestsSent, benchmarkVal: 18, unit: '', percentile: 72 },
-    { label: 'Acceptance Rate', userVal: weekData.acceptanceRate, benchmarkVal: 68, unit: '%', percentile: 81 },
-    { label: 'Messages Sent', userVal: weekData.messagesSent, benchmarkVal: 28, unit: '', percentile: 65 },
-    { label: 'Catch-ups Booked', userVal: weekData.catchupsBooked, benchmarkVal: 2, unit: '', percentile: 78 },
-  ];
-
-  const maxVals = {
-    'Requests Sent': 40, 'Acceptance Rate': 100, 'Messages Sent': 70, 'Catch-ups Booked': 8
-  };
-
-  return (
-    <div className="glass-card p-6">
-      <h3 style={{ color: '#fff', fontWeight: 700, fontSize: '1.05rem', marginBottom: 20 }}>
-        Peer Benchmarks
-      </h3>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-        {benchmarks.map(b => {
-          const maxVal = maxVals[b.label];
-          const userPct = Math.min((b.userVal / maxVal) * 100, 100);
-          const benchPct = Math.min((b.benchmarkVal / maxVal) * 100, 100);
-          return (
-            <div key={b.label}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 7 }}>
-                <span style={{ color: 'rgba(255,255,255,0.7)', fontSize: '0.83rem', fontWeight: 500 }}>{b.label}</span>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <span style={{ color: '#c9a84c', fontSize: '0.83rem', fontWeight: 700 }}>
-                    You: {b.userVal}{b.unit}
-                  </span>
-                  <span style={{ color: 'rgba(255,255,255,0.35)', fontSize: '0.75rem' }}>
-                    Avg: {b.benchmarkVal}{b.unit}
-                  </span>
-                </div>
-              </div>
-              <div style={{ position: 'relative', height: 10 }}>
-                <div className="progress-bar-bg" style={{ position: 'absolute', top: 1, height: 8 }}/>
-                <div style={{
-                  position: 'absolute', top: 0, left: `${benchPct}%`,
-                  width: 2, height: 10, background: 'rgba(255,255,255,0.3)', borderRadius: 2, zIndex: 2
-                }}/>
-                <div className="progress-bar-fill" style={{ position: 'absolute', top: 1, width: `${userPct}%`, zIndex: 1 }}/>
-              </div>
-              <div style={{ marginTop: 5, textAlign: 'right' }}>
-                <span style={{
-                  fontSize: '0.72rem', fontWeight: 600,
-                  color: b.percentile >= 75 ? '#4ade80' : b.percentile >= 50 ? '#c9a84c' : '#f87171'
-                }}>
-                  {b.percentile}th percentile
-                </span>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-      <div style={{ marginTop: 16, padding: '8px 12px', background: 'rgba(201,168,76,0.08)', borderRadius: 8, borderLeft: '3px solid #c9a84c' }}>
-        <p style={{ color: 'rgba(255,255,255,0.55)', fontSize: '0.75rem' }}>
-          Benchmarks based on M&amp;A candidate cohort data. Your percentile reflects performance vs. peers in the Prepped Talent network.
-        </p>
-      </div>
-    </div>
-  );
-}
-
-// ─── ActivityLog ──────────────────────────────────────────────────────────────
-
-function ActivityLog({ weekData }) {
-  const [open, setOpen] = useState(true);
-  const [activeTab, setActiveTab] = useState('invitations');
-
-  if (!weekData) return null;
+  // Propagate count up
+  useEffect(() => {
+    const count = Object.values(manualCatchups).filter(Boolean).length;
+    if (onCatchupsChange) onCatchupsChange(count);
+  }, [manualCatchups]);
 
   const tabs = [
-    { id: 'invitations', label: `Invitations (${weekData.invitations.length})` },
-    { id: 'messages', label: `Messages (${weekData.messages.length})` },
-    { id: 'catchups', label: `Catch-ups (${weekData.catchups.length})` },
+    { id: 'connections', label: 'Connections', count: weekData?.connections?.length || 0 },
+    { id: 'messages',    label: 'Messages',    count: weekData?.messages?.length || 0 },
   ];
 
-  const formatDate = (str) => {
-    const d = parseDate(str);
-    if (!d) return '\u2014';
-    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
-  };
-
-  const renderRows = () => {
-    if (activeTab === 'invitations') {
-      if (!weekData.invitations.length) return <EmptyState msg="No invitations this week." />;
-      return weekData.invitations.slice(0, 50).map((inv, i) => (
-        <div key={i} className="log-row" style={{
-          display: 'grid', gridTemplateColumns: '2fr 2fr 1fr 1fr',
-          padding: '10px 14px', borderBottom: '1px solid rgba(255,255,255,0.05)',
-          gap: 8, alignItems: 'center'
-        }}>
-          <span style={{ color: '#fff', fontSize: '0.82rem', fontWeight: 500 }}>{inv['To'] || inv['to'] || '\u2014'}</span>
-          <span style={{ color: 'rgba(255,255,255,0.45)', fontSize: '0.78rem' }}>{inv['Company'] || inv['company'] || '\u2014'}</span>
-          <span style={{
-            fontSize: '0.72rem', fontWeight: 600, padding: '2px 8px', borderRadius: 999,
-            background: ((inv['Status']||'').toLowerCase() === 'accepted' || inv._accepted) ? 'rgba(74,222,128,0.15)' : 'rgba(251,191,36,0.12)',
-            color: ((inv['Status']||'').toLowerCase() === 'accepted' || inv._accepted) ? '#4ade80' : '#fbbf24',
-            textAlign: 'center', whiteSpace: 'nowrap'
-          }}>{inv['Status'] || (inv._accepted ? 'Connected' : 'Pending')}</span>
-          <span style={{ color: 'rgba(255,255,255,0.35)', fontSize: '0.75rem', textAlign: 'right' }}>
-            {formatDate(inv['Sent At'] || inv['sent_at'] || '')}
-          </span>
-        </div>
-      ));
-    }
-    if (activeTab === 'messages') {
-      if (!weekData.messages.length) return <EmptyState msg="No messages this week." />;
-      return weekData.messages.slice(0, 50).map((msg, i) => (
-        <div key={i} className="log-row" style={{
-          display: 'grid', gridTemplateColumns: '1.5fr 3fr 1fr',
-          padding: '10px 14px', borderBottom: '1px solid rgba(255,255,255,0.05)',
-          gap: 8, alignItems: 'center'
-        }}>
-          <span style={{ color: '#fff', fontSize: '0.82rem', fontWeight: 500 }}>{msg['TO'] || msg['To'] || '\u2014'}</span>
-          <span style={{ color: 'rgba(255,255,255,0.45)', fontSize: '0.78rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            {msg['CONTENT'] || msg['Content'] || msg['content'] || '\u2014'}
-          </span>
-          <span style={{ color: 'rgba(255,255,255,0.35)', fontSize: '0.75rem', textAlign: 'right' }}>
-            {formatDate(msg['DATE'] || msg['Date'] || '')}
-          </span>
-        </div>
-      ));
-    }
-    if (activeTab === 'catchups') {
-      if (!weekData.catchups.length) return <EmptyState msg="No catch-ups detected this week." />;
-      return weekData.catchups.map((msg, i) => (
-        <div key={i} className="log-row" style={{
-          display: 'grid', gridTemplateColumns: '1.5fr 3fr 1fr',
-          padding: '10px 14px', borderBottom: '1px solid rgba(255,255,255,0.05)',
-          gap: 8, alignItems: 'center'
-        }}>
-          <span style={{ color: '#c9a84c', fontSize: '0.82rem', fontWeight: 600 }}>{msg['TO'] || msg['To'] || '\u2014'}</span>
-          <span style={{ color: 'rgba(255,255,255,0.5)', fontSize: '0.78rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            {msg['CONTENT'] || msg['Content'] || msg['content'] || '\u2014'}
-          </span>
-          <span style={{ color: 'rgba(255,255,255,0.35)', fontSize: '0.75rem', textAlign: 'right' }}>
-            {formatDate(msg['DATE'] || msg['Date'] || '')}
-          </span>
-        </div>
-      ));
-    }
-  };
-
   return (
-    <div className="glass-card" style={{ overflow: 'hidden' }}>
-      <button
-        onClick={() => setOpen(o => !o)}
-        style={{
-          width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          padding: '18px 24px', background: 'none', border: 'none', cursor: 'pointer'
-        }}
-      >
-        <span style={{ color: '#fff', fontWeight: 700, fontSize: '1.05rem' }}>Activity Log</span>
-        <IconChevron open={open} />
-      </button>
+    <div className="glass-card p-5" style={{ minHeight: 260 }}>
+      <div className="flex items-center gap-2 mb-4">
+        {tabs.map(t => (
+          <button key={t.id} onClick={() => setActiveTab(t.id)}
+            className={`tab-btn px-4 py-1.5 rounded-full text-sm ${activeTab === t.id ? 'active' : ''}`}>
+            {t.label}
+            <span style={{ marginLeft: 6, opacity: 0.7, fontSize: 11 }}>({t.count})</span>
+          </button>
+        ))}
+      </div>
 
-      <div style={{ maxHeight: open ? 9999 : 0, overflow: 'hidden', transition: 'max-height 0.4s ease' }}>
-        <div style={{ display: 'flex', borderBottom: '1px solid rgba(255,255,255,0.08)', padding: '0 24px' }}>
-          {tabs.map(t => (
-            <button
-              key={t.id}
-              onClick={() => setActiveTab(t.id)}
-              className={activeTab === t.id ? 'tab-active' : 'tab-inactive'}
-              style={{
-                background: 'none', border: 'none', cursor: 'pointer',
-                padding: '10px 16px', fontSize: '0.83rem', fontWeight: 600,
-                transition: 'color 0.2s'
-              }}
-            >
-              {t.label}
-            </button>
+      {activeTab === 'connections' && (
+        <div style={{ maxHeight: 220, overflowY: 'auto' }}>
+          {(!weekData?.connections?.length) ? (
+            <p style={{ color: 'rgba(255,255,255,0.35)', fontSize: 13 }}>No connections this week.</p>
+          ) : weekData.connections.map((c, i) => (
+            <div key={i} className="flex items-center gap-3 py-2" style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+              <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'rgba(201,168,76,0.18)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:14, color:'#c9a84c', flexShrink:0 }}>
+                {(c.name||'?')[0].toUpperCase()}
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ color:'#fff', fontSize:13, fontWeight:600, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{c.name}</div>
+                <div style={{ color:'rgba(255,255,255,0.4)', fontSize:11 }}>{c.position}{c.company ? ` · ${c.company}` : ''}</div>
+              </div>
+            </div>
           ))}
-        </div>
-
-        <div style={{ padding: '8px 14px', background: 'rgba(255,255,255,0.03)' }}>
-          {activeTab === 'invitations' && (
-            <div style={{ display: 'grid', gridTemplateColumns: '2fr 2fr 1fr 1fr', gap: 8 }}>
-              {['Name','Company','Status','Sent'].map(h => (
-                <span key={h} style={{ color: 'rgba(255,255,255,0.3)', fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.07em', fontWeight: 600 }}>{h}</span>
-              ))}
-            </div>
-          )}
-          {(activeTab === 'messages' || activeTab === 'catchups') && (
-            <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 3fr 1fr', gap: 8 }}>
-              {['To','Message','Date'].map(h => (
-                <span key={h} style={{ color: 'rgba(255,255,255,0.3)', fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.07em', fontWeight: 600 }}>{h}</span>
-              ))}
-            </div>
-          )}
-        </div>
-
-        <div style={{ maxHeight: 340, overflowY: 'auto' }}>
-          {renderRows()}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function EmptyState({ msg }) {
-  return (
-    <div style={{ padding: '32px', textAlign: 'center', color: 'rgba(255,255,255,0.3)', fontSize: '0.85rem' }}>
-      {msg}
-    </div>
-  );
-}
-
-// ─── Upload Screen ────────────────────────────────────────────────────────────
-
-function UploadScreen({ onDataLoaded, onSampleData }) {
-  const [dragging, setDragging] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-  const fileRef = useRef();
-
-  const processZip = useCallback(async (file) => {
-    setLoading(true);
-    setError('');
-    try {
-      const zip = await JSZip.loadAsync(file);
-      const files = {};
-      zip.forEach((relativePath, zipEntry) => {
-        files[relativePath.toLowerCase()] = zipEntry;
-      });
-
-      const findFile = (name) => {
-        const lower = name.toLowerCase();
-        const key = Object.keys(files).find(k => k.split('/').pop() === lower);
-        return key ? files[key] : null;
-      };
-
-      const connectionsEntry = findFile('connections.csv');
-      const messagesEntry = findFile('messages.csv');
-      const invitationsEntry = findFile('invitations.csv');
-
-      const missing = [];
-      if (!connectionsEntry) missing.push('Connections.csv');
-      if (!messagesEntry) missing.push('messages.csv');
-      if (!invitationsEntry) missing.push('Invitations.csv');
-
-      if (missing.length === 3) {
-        setError(`No recognized CSVs found in ZIP. Missing: ${missing.join(', ')}`);
-        setLoading(false);
-        return;
-      }
-
-      const parseCSV = async (entry, skipLines = 0) => {
-        if (!entry) return [];
-        let text = await entry.async('text');
-        // Skip leading non-CSV lines (e.g., LinkedIn disclaimer in Connections.csv)
-        if (skipLines > 0) {
-          const lines = text.split('\n');
-          text = lines.slice(skipLines).join('\n');
-        }
-        const result = Papa.parse(text, { header: true, skipEmptyLines: true });
-        return result.data;
-      };
-
-      // Connections.csv has a 3-line disclaimer header before the actual CSV
-      const connectionsText = connectionsEntry ? await connectionsEntry.async('text') : '';
-      const connSkip = connectionsText.startsWith('Notes:') ? 3 : 0;
-
-      const [connections, messages, invitations] = await Promise.all([
-        parseCSV(connectionsEntry, connSkip),
-        parseCSV(messagesEntry),
-        parseCSV(invitationsEntry),
-      ]);
-
-      onDataLoaded({ invitations, messages, connections, missing });
-    } catch (e) {
-      setError('Failed to read ZIP file. Please ensure it is a valid LinkedIn data export.');
-      console.error(e);
-    }
-    setLoading(false);
-  }, [onDataLoaded]);
-
-  const onDrop = useCallback((e) => {
-    e.preventDefault();
-    setDragging(false);
-    const file = e.dataTransfer.files[0];
-    if (file && file.name.endsWith('.zip')) {
-      processZip(file);
-    } else {
-      setError('Please upload a .zip file (LinkedIn data export).');
-    }
-  }, [processZip]);
-
-  const onFileChange = (e) => {
-    const file = e.target.files[0];
-    if (file) processZip(file);
-  };
-
-  return (
-    <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '32px 16px' }}>
-      <div style={{ marginBottom: 40, textAlign: 'center' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, marginBottom: 10 }}>
-          <div style={{ width: 42, height: 42, borderRadius: 12, background: 'linear-gradient(135deg, #c9a84c, #e8c97e)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, fontSize: 20, color: '#1a1a2e' }}>P</div>
-          <span style={{ fontSize: '1.5rem', fontWeight: 800, color: '#fff' }}>Prepped <span className="gold-gradient">Talent</span></span>
-        </div>
-        <p style={{ color: 'rgba(255,255,255,0.45)', fontSize: '0.9rem' }}>LinkedIn Networking Activity Dashboard</p>
-      </div>
-
-      <div
-        className={`glass-card${dragging ? ' drop-zone-active' : ''}`}
-        style={{
-          width: '100%', maxWidth: 560,
-          border: `2px dashed ${dragging ? '#c9a84c' : 'rgba(201,168,76,0.25)'}`,
-          borderRadius: 20, padding: '52px 32px', textAlign: 'center', cursor: 'pointer',
-          transition: 'all 0.2s'
-        }}
-        onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
-        onDragLeave={() => setDragging(false)}
-        onDrop={onDrop}
-        onClick={() => fileRef.current.click()}
-      >
-        {loading ? (
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}>
-            <div className="spinner"/>
-            <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: '0.9rem' }}>Parsing your LinkedIn data...</p>
-          </div>
-        ) : (
-          <>
-            <div style={{ color: 'rgba(201,168,76,0.7)', marginBottom: 16 }}><IconUpload /></div>
-            <p style={{ color: '#fff', fontWeight: 700, fontSize: '1.1rem', marginBottom: 8 }}>
-              Drop your LinkedIn data export here
-            </p>
-            <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: '0.85rem', marginBottom: 20 }}>
-              Upload the <strong style={{ color: 'rgba(255,255,255,0.65)' }}>.zip</strong> file downloaded from LinkedIn Settings &rarr; Data Privacy &rarr; Get a copy of your data
-            </p>
-            <div style={{
-              display: 'inline-flex', alignItems: 'center', gap: 8,
-              padding: '10px 22px', borderRadius: 10,
-              background: 'rgba(201,168,76,0.12)', border: '1px solid rgba(201,168,76,0.3)',
-              color: '#c9a84c', fontWeight: 600, fontSize: '0.87rem'
-            }}>
-              <IconZip /> Browse .zip file
-            </div>
-            <input ref={fileRef} type="file" accept=".zip" style={{ display: 'none' }} onChange={onFileChange} />
-          </>
-        )}
-      </div>
-
-      {error && (
-        <div style={{
-          marginTop: 16, padding: '12px 18px', borderRadius: 10,
-          background: 'rgba(248,113,113,0.1)', border: '1px solid rgba(248,113,113,0.3)',
-          color: '#fca5a5', fontSize: '0.84rem', maxWidth: 560, width: '100%'
-        }}>
-          {error}
         </div>
       )}
 
-      <div style={{ marginTop: 24, textAlign: 'center' }}>
-        <p style={{ color: 'rgba(255,255,255,0.3)', fontSize: '0.8rem', marginBottom: 12 }}>&mdash; or &mdash;</p>
-        <button
-          onClick={onSampleData}
-          style={{
-            padding: '12px 32px', borderRadius: 12, cursor: 'pointer', fontWeight: 700, fontSize: '0.9rem',
-            background: 'linear-gradient(135deg, #c9a84c, #e8c97e)',
-            color: '#1a1a2e', border: 'none', boxShadow: '0 4px 20px rgba(201,168,76,0.25)',
-            transition: 'opacity 0.2s'
-          }}
-          onMouseEnter={e => e.target.style.opacity = '0.88'}
-          onMouseLeave={e => e.target.style.opacity = '1'}
-        >
-          Load Sample Data
-        </button>
-        <p style={{ color: 'rgba(255,255,255,0.25)', fontSize: '0.75rem', marginTop: 8 }}>
-          Demo with 8 weeks of synthetic M&amp;A candidate activity
-        </p>
-      </div>
+      {activeTab === 'messages' && (
+        <div style={{ maxHeight: 220, overflowY: 'auto' }}>
+          {(!weekData?.messages?.length) ? (
+            <p style={{ color: 'rgba(255,255,255,0.35)', fontSize: 13 }}>No messages sent this week.</p>
+          ) : (
+            <>
+              <div style={{ display:'grid', gridTemplateColumns:'1fr auto', gap:8, marginBottom:8, padding:'0 4px' }}>
+                <span style={{ color:'rgba(255,255,255,0.35)', fontSize:11, fontWeight:600, textTransform:'uppercase', letterSpacing:'0.04em' }}>Message</span>
+                <span style={{ color:'rgba(255,255,255,0.35)', fontSize:11, fontWeight:600, textTransform:'uppercase', letterSpacing:'0.04em' }}>Catch-up?</span>
+              </div>
+              {weekData.messages.map((m, i) => (
+                <div key={i} style={{ display:'grid', gridTemplateColumns:'1fr auto', gap:8, alignItems:'center', padding:'6px 4px', borderBottom:'1px solid rgba(255,255,255,0.06)' }}>
+                  <div style={{ minWidth:0 }}>
+                    <div style={{ color:'#fff', fontSize:12, fontWeight:600, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>
+                      {m.to || 'Contact'}
+                    </div>
+                    <div style={{ color:'rgba(255,255,255,0.35)', fontSize:11, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>
+                      {m.content ? m.content.slice(0, 60) + (m.content.length > 60 ? '…' : '') : m.subject || '—'}
+                    </div>
+                  </div>
+                  <div style={{ display:'flex', alignItems:'center', justifyContent:'center' }}>
+                    <input
+                      type="checkbox"
+                      className="checkbox-catchup"
+                      checked={!!manualCatchups[i]}
+                      onChange={e => setManualCatchups(prev => ({ ...prev, [i]: e.target.checked }))}
+                    />
+                  </div>
+                </div>
+              ))}
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
-      <div className="glass-card" style={{ marginTop: 40, maxWidth: 560, width: '100%', padding: '20px 24px' }}>
-        <p style={{ color: '#c9a84c', fontWeight: 700, fontSize: '0.83rem', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 12 }}>Required files inside your .zip</p>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {['Connections.csv','messages.csv','Invitations.csv'].map(f => (
-            <div key={f} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#c9a84c', flexShrink: 0 }}/>
-              <span style={{ color: 'rgba(255,255,255,0.6)', fontSize: '0.82rem', fontFamily: 'monospace' }}>{f}</span>
+// ─── Upload Screen ─────────────────────────────────────────────────────────────
+function UploadScreen({ onData, onSample }) {
+  const [dragging, setDragging] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleFile = async (file) => {
+    setError('');
+    setLoading(true);
+    try {
+      if (!file.name.endsWith('.zip')) { setError('Please upload a LinkedIn data export ZIP file.'); setLoading(false); return; }
+      const parsed = await parseZip(file);
+      const weeks = aggregateByWeek(parsed, '');
+      onData(weeks, parsed);
+    } catch(e) {
+      setError('Could not parse the file: ' + e.message);
+    }
+    setLoading(false);
+  };
+
+  const onDrop = (e) => { e.preventDefault(); setDragging(false); const f = e.dataTransfer.files[0]; if (f) handleFile(f); };
+  const onDragOver = (e) => { e.preventDefault(); setDragging(true); };
+  const onDragLeave = () => setDragging(false);
+
+  return (
+    <div className="min-h-screen flex flex-col items-center justify-center p-6" style={{ background: 'linear-gradient(135deg, #1a1a2e 0%, #0d1b35 100%)' }}>
+      <div style={{ maxWidth: 560, width: '100%' }}>
+        <div className="text-center mb-8">
+          <div style={{ fontSize: 13, fontWeight: 700, letterSpacing: '0.15em', color: '#c9a84c', textTransform: 'uppercase', marginBottom: 12 }}>Prepped Talent</div>
+          <h1 style={{ fontSize: 32, fontWeight: 800, color: '#fff', lineHeight: 1.15, marginBottom: 10 }}>LinkedIn Networking<br/>Dashboard <span className="gradient-text">V2</span></h1>
+          <p style={{ color: 'rgba(255,255,255,0.45)', fontSize: 15 }}>Upload your LinkedIn data export to visualise your networking performance.</p>
+        </div>
+
+        <div
+          className={`drop-zone p-10 text-center cursor-pointer ${dragging ? 'drag-over' : ''}`}
+          onDrop={onDrop} onDragOver={onDragOver} onDragLeave={onDragLeave}
+          onClick={() => document.getElementById('file-input').click()}
+        >
+          <div style={{ fontSize: 40, marginBottom: 12 }}>📦</div>
+          <p style={{ color: '#fff', fontWeight: 600, fontSize: 16 }}>Drop your LinkedIn export ZIP here</p>
+          <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 13, marginTop: 4 }}>or click to browse</p>
+          <input id="file-input" type="file" accept=".zip" style={{ display:'none' }} onChange={e => { if (e.target.files[0]) handleFile(e.target.files[0]); }} />
+        </div>
+
+        {error && <div style={{ color:'#ef4444', marginTop:10, fontSize:13, textAlign:'center' }}>{error}</div>}
+        {loading && <div style={{ color:'#c9a84c', marginTop:10, fontSize:13, textAlign:'center' }}>Parsing your data…</div>}
+
+        <div className="text-center mt-6">
+          <button onClick={onSample} style={{ background:'rgba(201,168,76,0.12)', border:'1px solid rgba(201,168,76,0.35)', color:'#c9a84c', borderRadius:10, padding:'10px 28px', fontSize:14, fontWeight:600, cursor:'pointer' }}>
+            Use sample data
+          </button>
+        </div>
+
+        <div className="glass-card-dark p-5 mt-8">
+          <p style={{ color:'rgba(255,255,255,0.5)', fontSize:12, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.06em', marginBottom:8 }}>How to export from LinkedIn</p>
+          {['Go to Settings → Data Privacy → Get a copy of your data','Select "Connections", "Invitations", and "Messages"','Wait for email, then upload the ZIP here'].map((s,i) => (
+            <div key={i} className="flex items-start gap-3" style={{ marginBottom:6 }}>
+              <span style={{ color:'#c9a84c', fontWeight:800, fontSize:13, flexShrink:0 }}>{i+1}.</span>
+              <span style={{ color:'rgba(255,255,255,0.5)', fontSize:12 }}>{s}</span>
             </div>
           ))}
         </div>
-        <p style={{ color: 'rgba(255,255,255,0.25)', fontSize: '0.75rem', marginTop: 14 }}>
-          All data is processed locally in your browser. Nothing is uploaded to any server.
-        </p>
       </div>
     </div>
   );
 }
 
-// ─── Custom Tooltip ───────────────────────────────────────────────────────────
+// ─── Main Dashboard ───────────────────────────────────────────────────────────
+function Dashboard({ weekData: rawWeekData, onReset }) {
+  const [selectedIdx, setSelectedIdx] = useState(rawWeekData.length - 1);
+  const [showRolling, setShowRolling] = useState(false);
+  const [catchupOverrides, setCatchupOverrides] = useState({});  // weekKey → count
 
-function CustomTooltip({ active, payload, label }) {
-  if (!active || !payload || !payload.length) return null;
-  return (
-    <div style={{
-      background: 'rgba(10,25,50,0.95)', border: '1px solid rgba(201,168,76,0.3)',
-      borderRadius: 10, padding: '12px 16px', minWidth: 180
-    }}>
-      <p style={{ color: '#c9a84c', fontWeight: 700, fontSize: '0.8rem', marginBottom: 8 }}>{label}</p>
-      {payload.map(p => (
-        <div key={p.dataKey} style={{ display: 'flex', justifyContent: 'space-between', gap: 16, marginBottom: 4 }}>
-          <span style={{ color: p.color, fontSize: '0.78rem', fontWeight: 500 }}>{p.name}</span>
-          <span style={{ color: '#fff', fontSize: '0.78rem', fontWeight: 700 }}>{p.value}</span>
-        </div>
-      ))}
-    </div>
-  );
-}
+  // 4-week rolling average
+  const rollingWeekData = useMemo(() => {
+    return rawWeekData.map((w, i) => {
+      const slice = rawWeekData.slice(Math.max(0, i - 3), i + 1);
+      const avg = (key) => Math.round(slice.reduce((s, x) => s + (x[key] || 0), 0) / slice.length);
+      return { ...w, requestsSent: avg('requestsSent'), acceptanceRate: avg('acceptanceRate'), messagesSent: avg('messagesSent'), catchupsBooked: avg('catchupsBooked') };
+    });
+  }, [rawWeekData]);
 
-// ─── Dashboard ────────────────────────────────────────────────────────────────
+  const displayData = showRolling ? rollingWeekData : rawWeekData;
+  const selectedWeek = displayData[selectedIdx] || displayData[displayData.length - 1];
+  const rawSelected = rawWeekData[selectedIdx] || rawWeekData[rawWeekData.length - 1];
 
-function Dashboard({ weekData, ME, onReset }) {
-  const [selectedWeekIdx, setSelectedWeekIdx] = useState(weekData.length - 1);
-  const current = weekData[selectedWeekIdx];
-  const prior = selectedWeekIdx > 0 ? weekData[selectedWeekIdx - 1] : null;
+  // Merge manual catchup override
+  const catchupCount = catchupOverrides[rawSelected?.key] !== undefined ? catchupOverrides[rawSelected.key] : (selectedWeek?.catchupsBooked || 0);
 
-  const delta = (key) => {
-    if (!prior) return 0;
-    return current[key] - prior[key];
-  };
+  const handleCatchupsChange = useCallback((count) => {
+    if (!rawSelected?.key) return;
+    setCatchupOverrides(prev => ({ ...prev, [rawSelected.key]: count }));
+  }, [rawSelected?.key]);
 
-  const chartData = weekData.map(w => ({
-    week: w.shortLabel,
-    'Requests Sent': w.requestsSent,
-    'Acceptance %': w.acceptanceRate,
-    'Messages': w.messagesSent,
-    'Catch-ups': w.catchupsBooked,
-  }));
+  // Sparkline series (last 12 weeks of display data)
+  const spark = (key) => displayData.map(w => w[key] || 0);
 
-  const lineColors = ['#c9a84c','#60a5fa','#a78bfa','#4ade80'];
-  const lineKeys = ['Requests Sent','Acceptance %','Messages','Catch-ups'];
+  const metrics = [
+    { title: 'Requests Sent',   value: selectedWeek?.requestsSent || 0,  suffix: '',   metricKey: 'requestsSent',   sparkData: spark('requestsSent'),   benchmark: BENCHMARKS.requestsSent },
+    { title: 'Acceptance Rate', value: selectedWeek?.acceptanceRate || 0, suffix: '%',  metricKey: 'acceptanceRate', sparkData: spark('acceptanceRate'),  benchmark: BENCHMARKS.acceptanceRate },
+    { title: 'Messages Sent',   value: selectedWeek?.messagesSent || 0,   suffix: '',   metricKey: 'messagesSent',   sparkData: spark('messagesSent'),    benchmark: BENCHMARKS.messagesSent },
+    { title: 'Catch-ups Booked',value: catchupCount,                       suffix: '',   metricKey: 'catchupsBooked', sparkData: spark('catchupsBooked'),  benchmark: BENCHMARKS.catchupsBooked },
+  ];
 
   return (
-    <div style={{ minHeight: '100vh', padding: '0 0 48px' }}>
-      <div style={{
-        borderBottom: '1px solid rgba(255,255,255,0.07)',
-        background: 'rgba(10,25,50,0.7)', backdropFilter: 'blur(16px)',
-        position: 'sticky', top: 0, zIndex: 40
-      }}>
-        <div style={{ maxWidth: 1200, margin: '0 auto', padding: '0 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: 64 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <div style={{ width: 34, height: 34, borderRadius: 9, background: 'linear-gradient(135deg, #c9a84c, #e8c97e)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, fontSize: 16, color: '#1a1a2e' }}>P</div>
-            <div>
-              <span style={{ fontSize: '1rem', fontWeight: 800, color: '#fff' }}>Prepped <span className="gold-gradient">Talent</span></span>
-              <span style={{ color: 'rgba(255,255,255,0.35)', fontSize: '0.75rem', marginLeft: 10 }}>Networking Dashboard</span>
-            </div>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            {ME && <span style={{ color: 'rgba(255,255,255,0.4)', fontSize: '0.78rem' }}>{ME}</span>}
-            <button
-              onClick={onReset}
-              style={{
-                padding: '7px 16px', borderRadius: 8, background: 'rgba(255,255,255,0.07)',
-                border: '1px solid rgba(255,255,255,0.12)', color: 'rgba(255,255,255,0.6)',
-                fontSize: '0.78rem', fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s'
-              }}
-              onMouseEnter={e => { e.target.style.background = 'rgba(255,255,255,0.12)'; e.target.style.color = '#fff'; }}
-              onMouseLeave={e => { e.target.style.background = 'rgba(255,255,255,0.07)'; e.target.style.color = 'rgba(255,255,255,0.6)'; }}
-            >
-              Upload New
-            </button>
-          </div>
-        </div>
-      </div>
+    <div style={{ minHeight: '100vh', background: 'linear-gradient(135deg, #1a1a2e 0%, #0d1b35 100%)', padding: '24px 16px' }}>
+      <div style={{ maxWidth: 1100, margin: '0 auto' }}>
 
-      <div style={{ maxWidth: 1200, margin: '0 auto', padding: '32px 24px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 28, flexWrap: 'wrap', gap: 12 }}>
+        {/* Header */}
+        <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
           <div>
-            <h1 style={{ color: '#fff', fontWeight: 800, fontSize: '1.5rem', marginBottom: 4 }}>
-              Activity Overview
-            </h1>
-            <p style={{ color: 'rgba(255,255,255,0.35)', fontSize: '0.83rem' }}>
-              {ME ? `Analyzing ${ME}'s LinkedIn activity` : 'LinkedIn networking analytics'}
-            </p>
+            <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.15em', color: '#c9a84c', textTransform: 'uppercase' }}>Prepped Talent</div>
+            <h1 style={{ fontSize: 22, fontWeight: 800, color: '#fff', margin: 0 }}>Networking Dashboard <span className="gradient-text">V2</span></h1>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <label style={{ color: 'rgba(255,255,255,0.4)', fontSize: '0.78rem', fontWeight: 500 }}>Week</label>
-            <select
-              value={selectedWeekIdx}
-              onChange={e => setSelectedWeekIdx(Number(e.target.value))}
-              style={{
-                background: 'rgba(15,52,96,0.7)', border: '1px solid rgba(201,168,76,0.3)',
-                color: '#fff', padding: '8px 14px', borderRadius: 9, fontSize: '0.83rem',
-                fontWeight: 600, cursor: 'pointer', outline: 'none', fontFamily: 'Inter, sans-serif'
-              }}
-            >
-              {weekData.map((w, i) => (
-                <option key={w.key} value={i}>{w.label}</option>
-              ))}
-            </select>
+          <div className="flex items-center gap-3 flex-wrap">
+            {/* Rolling toggle */}
+            <div style={{ display:'flex', gap:0, borderRadius:8, overflow:'hidden', border:'1px solid rgba(255,255,255,0.12)' }}>
+              <button className={`toggle-btn px-3 py-1.5 text-xs font-semibold border-0`} style={{ borderRight:'1px solid rgba(255,255,255,0.12)', background: !showRolling ? 'rgba(201,168,76,0.2)' : 'transparent', color: !showRolling ? '#e8c97e' : 'rgba(255,255,255,0.4)', cursor:'pointer' }} onClick={() => setShowRolling(false)}>Weekly</button>
+              <button className={`toggle-btn px-3 py-1.5 text-xs font-semibold border-0`} style={{ background: showRolling ? 'rgba(201,168,76,0.2)' : 'transparent', color: showRolling ? '#e8c97e' : 'rgba(255,255,255,0.4)', cursor:'pointer' }} onClick={() => setShowRolling(true)}>4-Week Avg</button>
+            </div>
+            <button onClick={onReset} style={{ background:'rgba(255,255,255,0.07)', border:'1px solid rgba(255,255,255,0.12)', color:'rgba(255,255,255,0.5)', borderRadius:8, padding:'6px 14px', fontSize:12, cursor:'pointer' }}>← New Upload</button>
           </div>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 16, marginBottom: 24 }}>
-          <MetricCard
-            label="Requests Sent"
-            value={current.requestsSent}
-            delta={delta('requestsSent')}
-            icon={<span style={{ color: '#c9a84c' }}><IconSend /></span>}
-            iconBg="rgba(201,168,76,0.15)"
-          />
-          <MetricCard
-            label="Acceptance Rate"
-            value={current.acceptanceRate}
-            suffix="%"
-            delta={delta('acceptanceRate')}
-            isRate
-            icon={<span style={{ color: '#60a5fa' }}><IconCheck /></span>}
-            iconBg="rgba(96,165,250,0.15)"
-          />
-          <MetricCard
-            label="Messages Sent"
-            value={current.messagesSent}
-            delta={delta('messagesSent')}
-            icon={<span style={{ color: '#a78bfa' }}><IconMsg /></span>}
-            iconBg="rgba(167,139,250,0.15)"
-          />
-          <MetricCard
-            label="Catch-ups Booked"
-            value={current.catchupsBooked}
-            delta={delta('catchupsBooked')}
-            icon={<span style={{ color: '#4ade80' }}><IconCalendar /></span>}
-            iconBg="rgba(74,222,128,0.15)"
-          />
-        </div>
-
-        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) 340px', gap: 16, marginBottom: 24, alignItems: 'start' }}>
-          <div className="glass-card" style={{ padding: '24px 20px 12px' }}>
-            <h3 style={{ color: '#fff', fontWeight: 700, fontSize: '1.05rem', marginBottom: 20 }}>8-Week Trend</h3>
-            <ResponsiveContainer width="100%" height={280}>
-              <LineChart data={chartData} margin={{ top: 4, right: 10, left: -20, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
-                <XAxis dataKey="week" tick={{ fill: 'rgba(255,255,255,0.35)', fontSize: 11 }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fill: 'rgba(255,255,255,0.35)', fontSize: 11 }} axisLine={false} tickLine={false} />
-                <Tooltip content={<CustomTooltip />} />
-                <Legend
-                  wrapperStyle={{ fontSize: '0.75rem', paddingTop: 12 }}
-                  formatter={(val) => <span style={{ color: 'rgba(255,255,255,0.6)' }}>{val}</span>}
-                />
-                {lineKeys.map((key, i) => (
-                  <Line
-                    key={key}
-                    type="monotone"
-                    dataKey={key}
-                    stroke={lineColors[i]}
-                    strokeWidth={2}
-                    dot={{ r: 3, fill: lineColors[i], strokeWidth: 0 }}
-                    activeDot={{ r: 5 }}
-                  />
-                ))}
-              </LineChart>
-            </ResponsiveContainer>
+        {/* Week selector */}
+        <div className="glass-card-dark p-3 mb-5 flex items-center gap-2 flex-wrap">
+          <span style={{ color:'rgba(255,255,255,0.4)', fontSize:11, fontWeight:600, textTransform:'uppercase', letterSpacing:'0.06em', flexShrink:0 }}>Week of:</span>
+          <div style={{ display:'flex', gap:4, flexWrap:'wrap' }}>
+            {displayData.map((w, i) => (
+              <button key={w.key} onClick={() => setSelectedIdx(i)}
+                style={{
+                  padding:'4px 10px', borderRadius:6, fontSize:11, fontWeight:600, cursor:'pointer', border:'none',
+                  background: i === selectedIdx ? 'linear-gradient(135deg,#c9a84c,#e8c97e)' : 'rgba(255,255,255,0.07)',
+                  color: i === selectedIdx ? '#1a1a2e' : 'rgba(255,255,255,0.5)',
+                  transition: 'all 0.15s',
+                }}>
+                {w.label}
+              </button>
+            ))}
           </div>
-
-          <PeerComparison weekData={current} />
         </div>
 
-        <ActivityLog weekData={current} />
+        {/* Metric cards */}
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(210px, 1fr))', gap:14, marginBottom:20 }}>
+          {metrics.map(m => <MetricCard key={m.metricKey} {...m} />)}
+        </div>
 
-        <p style={{ textAlign: 'center', color: 'rgba(255,255,255,0.18)', fontSize: '0.72rem', marginTop: 32 }}>
-          All data processed locally &middot; Nothing leaves your browser &middot; Prepped Talent M&amp;A Candidate Program
-        </p>
+        {/* Main chart */}
+        <div className="glass-card p-5 mb-5">
+          <div className="flex items-center justify-between mb-3">
+            <h2 style={{ color:'#fff', fontWeight:700, fontSize:15, margin:0 }}>12-Week Trend {showRolling && <span style={{ color:'#c9a84c', fontSize:12, fontWeight:500 }}>(4-week rolling avg)</span>}</h2>
+            <span style={{ color:'rgba(255,255,255,0.3)', fontSize:11 }}>Dashed = benchmark</span>
+          </div>
+          <MainChart weekData={displayData} showRolling={showRolling} />
+        </div>
+
+        {/* Activity log */}
+        <div>
+          <h2 style={{ color:'#fff', fontWeight:700, fontSize:15, marginBottom:10 }}>
+            Activity — Week of {selectedWeek?.label}
+            {showRolling && <span style={{ color:'rgba(255,255,255,0.35)', fontSize:12, fontWeight:400, marginLeft:8 }}>(showing raw data)</span>}
+          </h2>
+          <ActivityLog weekData={rawSelected} onCatchupsChange={handleCatchupsChange} />
+        </div>
+
+        {/* Quartile legend */}
+        <div className="glass-card-dark p-4 mt-5 flex items-center gap-4 flex-wrap">
+          <span style={{ color:'rgba(255,255,255,0.4)', fontSize:11, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.06em', flexShrink:0 }}>Quartile key:</span>
+          {[
+            { q:'Q1', label:'Below target',     color:'#ef4444' },
+            { q:'Q2', label:'Getting there',    color:'#f59e0b' },
+            { q:'Q3', label:'On target',        color:'#eab308' },
+            { q:'Q4', label:'Exceeding target', color:'#22c55e' },
+          ].map(b => (
+            <div key={b.q} className="flex items-center gap-1.5">
+              <div style={{ width:10, height:10, borderRadius:3, background:b.color, flexShrink:0 }} />
+              <span style={{ color:'rgba(255,255,255,0.55)', fontSize:11 }}><b style={{ color:b.color }}>{b.q}</b> {b.label}</span>
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   );
 }
 
-// ─── App ──────────────────────────────────────────────────────────────────────
-
+// ─── App Root ─────────────────────────────────────────────────────────────────
 function App() {
-  const [state, setState] = useState('upload');
-  const [weekData, setWeekData] = useState([]);
-  const [ME, setME] = useState('');
-  const [warnings, setWarnings] = useState([]);
+  const [weekData, setWeekData] = useState(null);
 
-  const handleDataLoaded = ({ invitations, messages, connections, missing }) => {
-    const { weekData, ME } = processData(invitations, messages, connections);
-    setWeekData(weekData);
-    setME(ME);
-    setWarnings(missing || []);
-    setState('dashboard');
-  };
+  const handleData = (weeks) => { setWeekData(weeks); };
+  const handleSample = () => { setWeekData(buildSampleData()); };
+  const handleReset = () => { setWeekData(null); };
 
-  const handleSampleData = () => {
-    const { invitations, messages, connections, ME } = generateSampleData();
-    const { weekData, ME: detectedME } = processData(invitations, messages, connections);
-    setWeekData(weekData);
-    setME(detectedME || ME);
-    setWarnings([]);
-    setState('dashboard');
-  };
-
-  const handleReset = () => {
-    setState('upload');
-    setWeekData([]);
-    setME('');
-    setWarnings([]);
-  };
-
-  if (state === 'upload') {
-    return <UploadScreen onDataLoaded={handleDataLoaded} onSampleData={handleSampleData} />;
-  }
-
-  if (state === 'dashboard') {
-    return (
-      <>
-        {warnings.length > 0 && (
-          <div style={{
-            background: 'rgba(251,191,36,0.1)', borderBottom: '1px solid rgba(251,191,36,0.2)',
-            padding: '10px 24px', textAlign: 'center',
-            color: '#fbbf24', fontSize: '0.8rem'
-          }}>
-            Some CSVs were missing from your export: <strong>{warnings.join(', ')}</strong>. Metrics may be incomplete.
-          </div>
-        )}
-        <Dashboard weekData={weekData} ME={ME} onReset={handleReset} />
-      </>
-    );
-  }
-
-  return null;
+  if (!weekData) return <UploadScreen onData={handleData} onSample={handleSample} />;
+  return <Dashboard weekData={weekData} onReset={handleReset} />;
 }
 
 const root = ReactDOM.createRoot(document.getElementById('root'));
