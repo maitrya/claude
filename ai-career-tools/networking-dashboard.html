@@ -70,7 +70,9 @@ const { useState, useEffect, useRef, useMemo, useCallback } = React;
 // ─── Supabase client ─────────────────────────────────────────────────────────
 const SUPABASE_URL = 'https://dsnkabdmposyukcedduy.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRzbmthYmRtcG9zeXVrY2VkZHV5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYzMzQ3NTcsImV4cCI6MjA5MTkxMDc1N30.J3nLI9fjDiE0-bcf1wyj2Hl6HhBEh8wWOsuD6ygODOg';
-const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+  auth: { detectSessionInUrl: true, persistSession: true, autoRefreshToken: true },
+});
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const BENCHMARKS = { requestsSent: 20, acceptanceRate: 40, messagesSent: 20, catchupsBooked: 2 };
