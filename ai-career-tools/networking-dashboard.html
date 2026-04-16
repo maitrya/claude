@@ -919,9 +919,18 @@ function App() {
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (!mounted) return;
+      // Only act on actual sign-in (magic link callback) or sign-out
+      // Ignore TOKEN_REFRESHED, USER_UPDATED etc. to avoid reload on tab focus
       if (event === 'SIGNED_IN' && session?.user) {
         setUser(session.user);
-        await tryLoadDB(session.user, mounted);
+        // Only load from DB if this is a fresh login (not a token refresh)
+        // Check if we're on the login screen to avoid re-loading when tab regains focus
+        setScreen(prev => {
+          if (prev === 'login' || prev === 'loading') {
+            tryLoadDB(session.user, mounted);
+          }
+          return prev;
+        });
       } else if (event === 'SIGNED_OUT') {
         setUser(null);
         setWeekData(null);
