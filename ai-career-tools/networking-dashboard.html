@@ -18,8 +18,9 @@
       theme: {
         extend: {
           colors: {
-            plum: '#0f0720', 'plum-mid': '#1a0d35', 'plum-card': '#2e1065',
-            fuchsia: '#d946ef', 'fuchsia-light': '#f0abfc',
+            plum: '#120818', 'plum-mid': '#1e0a30', 'plum-card': '#2d1057',
+            pink: '#ec4899', 'pink-light': '#f9a8d4',
+            purple: '#a855f7', 'purple-light': '#d8b4fe',
           },
           fontFamily: { inter: ['Inter', 'sans-serif'] },
         },
@@ -28,27 +29,27 @@
   </script>
   <style>
     * { box-sizing: border-box; }
-    body { background-color: #0f0720; font-family: 'Inter', sans-serif; margin: 0; padding: 0; min-height: 100vh; }
-    .glass-card { background: rgba(46,16,101,0.45); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); border: 1px solid rgba(217,70,239,0.18); border-radius: 16px; }
-    .glass-card-dark { background: rgba(15,7,32,0.65); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border: 1px solid rgba(217,70,239,0.12); border-radius: 12px; }
-    .gradient-text { background: linear-gradient(135deg, #d946ef, #f0abfc); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
-    .drop-zone { border: 2px dashed rgba(217,70,239,0.3); border-radius: 12px; transition: all 0.3s ease; cursor: pointer; }
-    .drop-zone:hover, .drop-zone.drag-over { border-color: #d946ef; background: rgba(217,70,239,0.08); }
+    body { background-color: #120818; font-family: 'Inter', sans-serif; margin: 0; padding: 0; min-height: 100vh; }
+    .glass-card { background: rgba(45,16,87,0.5); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); border: 1px solid rgba(236,72,153,0.2); border-radius: 16px; }
+    .glass-card-dark { background: rgba(18,8,24,0.7); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border: 1px solid rgba(168,85,247,0.15); border-radius: 12px; }
+    .gradient-text { background: linear-gradient(135deg, #ec4899, #a855f7); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+    .drop-zone { border: 2px dashed rgba(236,72,153,0.3); border-radius: 12px; transition: all 0.3s ease; cursor: pointer; }
+    .drop-zone:hover, .drop-zone.drag-over { border-color: #ec4899; background: rgba(236,72,153,0.07); }
     .drop-zone.loaded { border-color: #a855f7; border-style: solid; background: rgba(168,85,247,0.1); }
     .tab-btn { transition: all 0.2s ease; }
-    .tab-btn.active { background: linear-gradient(135deg, #d946ef, #f0abfc); color: #0f0720; font-weight: 700; }
-    .tab-btn:not(.active) { color: rgba(255,255,255,0.6); }
-    .tab-btn:not(.active):hover { color: #d946ef; background: rgba(217,70,239,0.1); }
+    .tab-btn.active { background: linear-gradient(135deg, #ec4899, #a855f7); color: #fff; font-weight: 700; }
+    .tab-btn:not(.active) { color: rgba(255,255,255,0.5); }
+    .tab-btn:not(.active):hover { color: #f9a8d4; background: rgba(236,72,153,0.1); }
     .metric-card-border { border-left: 4px solid; }
     ::-webkit-scrollbar { width: 6px; height: 6px; }
     ::-webkit-scrollbar-track { background: rgba(255,255,255,0.05); border-radius: 3px; }
-    ::-webkit-scrollbar-thumb { background: rgba(217,70,239,0.4); border-radius: 3px; }
+    ::-webkit-scrollbar-thumb { background: rgba(236,72,153,0.45); border-radius: 3px; }
     .sparkline-wrap { width: 100%; height: 56px; }
-    .checkbox-catchup { accent-color: #d946ef; width: 16px; height: 16px; cursor: pointer; }
+    .checkbox-catchup { accent-color: #ec4899; width: 16px; height: 16px; cursor: pointer; }
     .file-slot { border-radius: 10px; padding: 12px 16px; display: flex; align-items: center; gap: 12px; transition: all 0.2s; }
-    .file-slot.empty { background: rgba(255,255,255,0.04); border: 1.5px dashed rgba(217,70,239,0.25); }
-    .file-slot.filled { background: rgba(168,85,247,0.12); border: 1.5px solid rgba(168,85,247,0.4); }
-    .file-slot.optional { border-color: rgba(255,255,255,0.1); }
+    .file-slot.empty { background: rgba(255,255,255,0.03); border: 1.5px dashed rgba(168,85,247,0.25); }
+    .file-slot.filled { background: rgba(236,72,153,0.1); border: 1.5px solid rgba(236,72,153,0.4); }
+    .file-slot.optional { border-color: rgba(255,255,255,0.08); }
   </style>
 </head>
 <body>
@@ -61,10 +62,10 @@ const { useState, useEffect, useRef, useMemo, useCallback } = React;
 const BENCHMARKS = { requestsSent: 20, acceptanceRate: 40, messagesSent: 20, catchupsBooked: 2 };
 
 const QUARTILE_CONFIG = {
-  requestsSent:   [{ max:10,q:'Q1',label:'Below target',color:'#ef4444'},{max:20,q:'Q2',label:'Getting there',color:'#f59e0b'},{max:30,q:'Q3',label:'On target',color:'#a855f7'},{max:Infinity,q:'Q4',label:'Exceeding target',color:'#d946ef'}],
-  acceptanceRate: [{ max:20,q:'Q1',label:'Below target',color:'#ef4444'},{max:40,q:'Q2',label:'Getting there',color:'#f59e0b'},{max:60,q:'Q3',label:'On target',color:'#a855f7'},{max:Infinity,q:'Q4',label:'Exceeding target',color:'#d946ef'}],
-  messagesSent:   [{ max:10,q:'Q1',label:'Below target',color:'#ef4444'},{max:20,q:'Q2',label:'Getting there',color:'#f59e0b'},{max:30,q:'Q3',label:'On target',color:'#a855f7'},{max:Infinity,q:'Q4',label:'Exceeding target',color:'#d946ef'}],
-  catchupsBooked: [{ max:0, q:'Q1',label:'Below target',color:'#ef4444'},{max:1, q:'Q2',label:'Getting there',color:'#f59e0b'},{max:2, q:'Q3',label:'On target',color:'#a855f7'},{max:Infinity,q:'Q4',label:'Exceeding target',color:'#d946ef'}],
+  requestsSent:   [{ max:10,q:'Q1',label:'Below target',color:'#ef4444'},{max:20,q:'Q2',label:'Getting there',color:'#f59e0b'},{max:30,q:'Q3',label:'On target',color:'#a855f7'},{max:Infinity,q:'Q4',label:'Exceeding target',color:'#ec4899'}],
+  acceptanceRate: [{ max:20,q:'Q1',label:'Below target',color:'#ef4444'},{max:40,q:'Q2',label:'Getting there',color:'#f59e0b'},{max:60,q:'Q3',label:'On target',color:'#a855f7'},{max:Infinity,q:'Q4',label:'Exceeding target',color:'#ec4899'}],
+  messagesSent:   [{ max:10,q:'Q1',label:'Below target',color:'#ef4444'},{max:20,q:'Q2',label:'Getting there',color:'#f59e0b'},{max:30,q:'Q3',label:'On target',color:'#a855f7'},{max:Infinity,q:'Q4',label:'Exceeding target',color:'#ec4899'}],
+  catchupsBooked: [{ max:0, q:'Q1',label:'Below target',color:'#ef4444'},{max:1, q:'Q2',label:'Getting there',color:'#f59e0b'},{max:2, q:'Q3',label:'On target',color:'#a855f7'},{max:Infinity,q:'Q4',label:'Exceeding target',color:'#ec4899'}],
 };
 
 function getQuartile(metricKey, value) {
@@ -193,7 +194,7 @@ function aggregateByWeek(data) {
   sorted.forEach(w => {
     const d = new Date(w.key);
     w.label = d.toLocaleDateString('en-AU', { day:'numeric', month:'short' });
-    w.acceptanceRate = w.requestsSent > 0 ? Math.round((w.connections.length / w.requestsSent) * 100) : 0;
+    w.acceptanceRate = w.requestsSent > 0 ? Math.min(100, Math.round((w.connections.length / w.requestsSent) * 100)) : 0;
     w.catchupsBooked = 0;
   });
 
@@ -326,7 +327,7 @@ function ActivityLog({ weekData, onCatchupsChange }) {
             ? <p style={{ color:'rgba(255,255,255,0.35)', fontSize:13 }}>No connections this week.</p>
             : weekData.connections.map((c,i) => (
               <div key={i} className="flex items-center gap-3 py-2" style={{ borderBottom:'1px solid rgba(255,255,255,0.06)' }}>
-                <div style={{ width:32,height:32,borderRadius:'50%',background:'rgba(217,70,239,0.18)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:14,color:'#d946ef',flexShrink:0 }}>
+                <div style={{ width:32,height:32,borderRadius:'50%',background:'rgba(236,72,153,0.18)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:14,color:'#ec4899',flexShrink:0 }}>
                   {(c.name||'?')[0].toUpperCase()}
                 </div>
                 <div style={{ flex:1, minWidth:0 }}>
@@ -443,20 +444,20 @@ function UploadScreen({ onData, onSample }) {
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-6"
-      style={{ background:'linear-gradient(135deg, #0f0720 0%, #1a0535 100%)' }}
+      style={{ background:'linear-gradient(135deg, #120818 0%, #1e0a30 100%)' }}
       onDragOver={e => { e.preventDefault(); setGlobalDrag(true); }}
       onDragLeave={() => setGlobalDrag(false)}
       onDrop={handleGlobalDrop}>
 
       {globalDrag && (
-        <div style={{ position:'fixed',inset:0,background:'rgba(217,70,239,0.12)',border:'3px solid #d946ef',zIndex:50,display:'flex',alignItems:'center',justifyContent:'center',pointerEvents:'none' }}>
-          <p style={{ color:'#f0abfc',fontSize:22,fontWeight:800 }}>Drop your CSV files anywhere</p>
+        <div style={{ position:'fixed',inset:0,background:'rgba(217,70,239,0.12)',border:'3px solid #ec4899',zIndex:50,display:'flex',alignItems:'center',justifyContent:'center',pointerEvents:'none' }}>
+          <p style={{ color:'#f9a8d4',fontSize:22,fontWeight:800 }}>Drop your CSV files anywhere</p>
         </div>
       )}
 
       <div style={{ maxWidth:560, width:'100%' }}>
         <div className="text-center mb-8">
-          <div style={{ fontSize:13,fontWeight:700,letterSpacing:'0.15em',color:'#d946ef',textTransform:'uppercase',marginBottom:12 }}>Prepped Talent</div>
+          <div style={{ fontSize:13,fontWeight:700,letterSpacing:'0.15em',color:'#ec4899',textTransform:'uppercase',marginBottom:12 }}>Prepped Talent</div>
           <h1 style={{ fontSize:32,fontWeight:800,color:'#fff',lineHeight:1.15,marginBottom:10 }}>
             LinkedIn Networking<br/>Dashboard <span className="gradient-text">V2</span>
           </h1>
@@ -481,7 +482,7 @@ function UploadScreen({ onData, onSample }) {
                     {loaded ? '✅' : slot.required ? '📄' : '📄'}
                   </div>
                   <div style={{ flex:1, minWidth:0 }}>
-                    <div style={{ color: loaded?'#f0abfc':'rgba(255,255,255,0.7)', fontWeight:600, fontSize:13 }}>
+                    <div style={{ color: loaded?'#f9a8d4':'rgba(255,255,255,0.7)', fontWeight:600, fontSize:13 }}>
                       {loaded ? `${loaded.name} — ${loaded.count} rows` : slot.label}
                       {!slot.required && !loaded && <span style={{ color:'rgba(255,255,255,0.3)',fontWeight:400,marginLeft:6 }}>(optional)</span>}
                     </div>
@@ -499,12 +500,12 @@ function UploadScreen({ onData, onSample }) {
           </div>
 
           {errors['_'] && <p style={{ color:'#ef4444',fontSize:12,marginTop:8 }}>{errors['_']}</p>}
-          {loading && <p style={{ color:'#d946ef',fontSize:12,marginTop:8 }}>Parsing…</p>}
+          {loading && <p style={{ color:'#ec4899',fontSize:12,marginTop:8 }}>Parsing…</p>}
         </div>
 
         <button onClick={handleGo} disabled={!canGo}
           style={{ width:'100%',padding:'13px',borderRadius:12,fontSize:15,fontWeight:700,cursor:canGo?'pointer':'not-allowed', border:'none',
-            background: canGo ? 'linear-gradient(135deg,#d946ef,#a855f7)' : 'rgba(255,255,255,0.08)',
+            background: canGo ? 'linear-gradient(135deg,#ec4899,#a855f7)' : 'rgba(255,255,255,0.08)',
             color: canGo ? '#fff' : 'rgba(255,255,255,0.3)',
             transition:'all 0.2s', marginBottom:12,
           }}>
@@ -513,7 +514,7 @@ function UploadScreen({ onData, onSample }) {
 
         <div className="text-center mb-6">
           <button onClick={onSample}
-            style={{ background:'rgba(217,70,239,0.1)',border:'1px solid rgba(217,70,239,0.3)',color:'#d946ef',borderRadius:10,padding:'9px 24px',fontSize:13,fontWeight:600,cursor:'pointer' }}>
+            style={{ background:'rgba(217,70,239,0.1)',border:'1px solid rgba(217,70,239,0.3)',color:'#ec4899',borderRadius:10,padding:'9px 24px',fontSize:13,fontWeight:600,cursor:'pointer' }}>
             Use sample data instead
           </button>
         </div>
@@ -529,7 +530,7 @@ function UploadScreen({ onData, onSample }) {
             'Drag those 3 files onto this page or click each slot above',
           ].map((s,i) => (
             <div key={i} className="flex items-start gap-3" style={{ marginBottom:6 }}>
-              <span style={{ color:'#d946ef',fontWeight:800,fontSize:12,flexShrink:0,marginTop:1 }}>{i+1}.</span>
+              <span style={{ color:'#ec4899',fontWeight:800,fontSize:12,flexShrink:0,marginTop:1 }}>{i+1}.</span>
               <span style={{ color:'rgba(255,255,255,0.45)',fontSize:12 }}>{s}</span>
             </div>
           ))}
@@ -569,19 +570,19 @@ function Dashboard({ weekData: rawWeekData, onReset }) {
   ];
 
   return (
-    <div style={{ minHeight:'100vh', background:'linear-gradient(135deg,#0f0720 0%,#1a0535 100%)', padding:'24px 16px' }}>
+    <div style={{ minHeight:'100vh', background:'linear-gradient(135deg,#120818 0%,#1e0a30 100%)', padding:'24px 16px' }}>
       <div style={{ maxWidth:1100, margin:'0 auto' }}>
 
         {/* Header */}
         <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
           <div>
-            <div style={{ fontSize:11,fontWeight:700,letterSpacing:'0.15em',color:'#d946ef',textTransform:'uppercase' }}>Prepped Talent</div>
+            <div style={{ fontSize:11,fontWeight:700,letterSpacing:'0.15em',color:'#ec4899',textTransform:'uppercase' }}>Prepped Talent</div>
             <h1 style={{ fontSize:22,fontWeight:800,color:'#fff',margin:0 }}>Networking Dashboard <span className="gradient-text">V2</span></h1>
           </div>
           <div className="flex items-center gap-3 flex-wrap">
             <div style={{ display:'flex',borderRadius:8,overflow:'hidden',border:'1px solid rgba(255,255,255,0.12)' }}>
-              <button onClick={() => setShowRolling(false)} style={{ padding:'6px 14px',fontSize:12,fontWeight:600,cursor:'pointer',border:'none',borderRight:'1px solid rgba(255,255,255,0.12)',background:!showRolling?'rgba(217,70,239,0.2)':'transparent',color:!showRolling?'#f0abfc':'rgba(255,255,255,0.4)' }}>Weekly</button>
-              <button onClick={() => setShowRolling(true)}  style={{ padding:'6px 14px',fontSize:12,fontWeight:600,cursor:'pointer',border:'none',background:showRolling?'rgba(217,70,239,0.2)':'transparent',color:showRolling?'#f0abfc':'rgba(255,255,255,0.4)' }}>4-Week Avg</button>
+              <button onClick={() => setShowRolling(false)} style={{ padding:'6px 14px',fontSize:12,fontWeight:600,cursor:'pointer',border:'none',borderRight:'1px solid rgba(255,255,255,0.12)',background:!showRolling?'rgba(217,70,239,0.2)':'transparent',color:!showRolling?'#f9a8d4':'rgba(255,255,255,0.4)' }}>Weekly</button>
+              <button onClick={() => setShowRolling(true)}  style={{ padding:'6px 14px',fontSize:12,fontWeight:600,cursor:'pointer',border:'none',background:showRolling?'rgba(217,70,239,0.2)':'transparent',color:showRolling?'#f9a8d4':'rgba(255,255,255,0.4)' }}>4-Week Avg</button>
             </div>
             <button onClick={onReset} style={{ background:'rgba(255,255,255,0.07)',border:'1px solid rgba(255,255,255,0.12)',color:'rgba(255,255,255,0.5)',borderRadius:8,padding:'6px 14px',fontSize:12,cursor:'pointer' }}>← New Upload</button>
           </div>
@@ -594,7 +595,7 @@ function Dashboard({ weekData: rawWeekData, onReset }) {
             {displayData.map((w,i) => (
               <button key={w.key} onClick={() => setSelectedIdx(i)}
                 style={{ padding:'4px 10px',borderRadius:6,fontSize:11,fontWeight:600,cursor:'pointer',border:'none',
-                  background: i===selectedIdx?'linear-gradient(135deg,#d946ef,#a855f7)':'rgba(255,255,255,0.07)',
+                  background: i===selectedIdx?'linear-gradient(135deg,#ec4899,#a855f7)':'rgba(255,255,255,0.07)',
                   color: i===selectedIdx?'#fff':'rgba(255,255,255,0.5)', transition:'all 0.15s' }}>
                 {w.label}
               </button>
@@ -611,7 +612,7 @@ function Dashboard({ weekData: rawWeekData, onReset }) {
         <div className="glass-card p-5 mb-5">
           <div className="flex items-center justify-between mb-3">
             <h2 style={{ color:'#fff',fontWeight:700,fontSize:15,margin:0 }}>
-              12-Week Trend {showRolling && <span style={{ color:'#d946ef',fontSize:12,fontWeight:500 }}>(4-week rolling avg)</span>}
+              12-Week Trend {showRolling && <span style={{ color:'#ec4899',fontSize:12,fontWeight:500 }}>(4-week rolling avg)</span>}
             </h2>
             <span style={{ color:'rgba(255,255,255,0.3)',fontSize:11 }}>Dashed = benchmark</span>
           </div>
@@ -630,7 +631,7 @@ function Dashboard({ weekData: rawWeekData, onReset }) {
         {/* Quartile legend */}
         <div className="glass-card-dark p-4 mt-5 flex items-center gap-4 flex-wrap">
           <span style={{ color:'rgba(255,255,255,0.4)',fontSize:11,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.06em',flexShrink:0 }}>Quartile key:</span>
-          {[{q:'Q1',label:'Below target',color:'#ef4444'},{q:'Q2',label:'Getting there',color:'#f59e0b'},{q:'Q3',label:'On target',color:'#a855f7'},{q:'Q4',label:'Exceeding target',color:'#d946ef'}].map(b => (
+          {[{q:'Q1',label:'Below target',color:'#ef4444'},{q:'Q2',label:'Getting there',color:'#f59e0b'},{q:'Q3',label:'On target',color:'#a855f7'},{q:'Q4',label:'Exceeding target',color:'#ec4899'}].map(b => (
             <div key={b.q} className="flex items-center gap-1.5">
               <div style={{ width:10,height:10,borderRadius:3,background:b.color,flexShrink:0 }} />
               <span style={{ color:'rgba(255,255,255,0.55)',fontSize:11 }}><b style={{ color:b.color }}>{b.q}</b> {b.label}</span>
