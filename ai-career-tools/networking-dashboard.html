@@ -47,6 +47,7 @@
     ::-webkit-scrollbar-thumb { background: rgba(236,72,153,0.45); border-radius: 3px; }
     .sparkline-wrap { width: 100%; height: 56px; }
     .checkbox-catchup { accent-color: #ec4899; width: 16px; height: 16px; cursor: pointer; }
+    @keyframes fadeIn { from { opacity:0; transform:translateY(-6px); } to { opacity:1; transform:translateY(0); } }
     .file-slot { border-radius: 10px; padding: 12px 16px; display: flex; align-items: center; gap: 12px; transition: all 0.2s; }
     .file-slot.empty { background: rgba(255,255,255,0.03); border: 1.5px dashed rgba(168,85,247,0.25); }
     .file-slot.filled { background: rgba(236,72,153,0.1); border: 1.5px solid rgba(236,72,153,0.4); }
@@ -376,15 +377,60 @@ function MainChart({ weekData }) {
   return <div ref={ref} style={{ width:'100%', height:280 }} />;
 }
 
+// ─── Metric Drilldown Chart ───────────────────────────────────────────────────
+function MetricDrilldown({ metricKey, title, suffix, weekData, benchmark }) {
+  const ref = useRef(null);
+  const q = getQuartile(metricKey, weekData[weekData.length-1]?.[metricKey] || 0);
+  useEffect(() => {
+    if (!ref.current || !window.Plotly || !weekData?.length) return;
+    const el = ref.current;
+    const labels = weekData.map(w => w.label);
+    const values = weekData.map(w => w[metricKey] || 0);
+    window.Plotly.newPlot(el, [
+      { x:labels, y:values, type:'scatter', mode:'lines+markers',
+        line:{width:3, shape:'spline', color:q.color},
+        marker:{size:7, color:q.color},
+        fill:'tozeroy', name:title },
+      { x:[labels[0],labels[labels.length-1]], y:[benchmark,benchmark],
+        mode:'lines', line:{dash:'dot',width:1.5,color:'rgba(255,255,255,0.3)'},
+        showlegend:false, hoverinfo:'skip', name:'Benchmark' },
+    ], {
+      paper_bgcolor:'rgba(0,0,0,0)', plot_bgcolor:'rgba(0,0,0,0)',
+      font:{ family:'Inter, sans-serif', color:'rgba(255,255,255,0.7)', size:11 },
+      margin:{t:10,b:50,l:40,r:20},
+      xaxis:{ gridcolor:'rgba(255,255,255,0.06)', tickfont:{color:'rgba(255,255,255,0.5)',size:10}, zeroline:false },
+      yaxis:{ gridcolor:'rgba(255,255,255,0.06)', tickfont:{color:'rgba(255,255,255,0.5)',size:10}, zeroline:false,
+        ticksuffix: suffix || '' },
+      hovermode:'x unified', showlegend:false,
+    }, { displayModeBar:false, responsive:true });
+    return () => { try { window.Plotly.purge(el); } catch(e) {} };
+  }, [metricKey, weekData]);
+  return (
+    <div className="glass-card p-5 mt-1" style={{ borderColor: q.color, borderTop:`2px solid ${q.color}`, animation:'fadeIn 0.2s ease' }}>
+      <div className="flex items-center justify-between mb-2">
+        <span style={{ color:'#fff', fontWeight:700, fontSize:14 }}>{title} — 12-Week Trend</span>
+        <span style={{ color:'rgba(255,255,255,0.3)', fontSize:11 }}>Dotted = benchmark ({benchmark}{suffix||''})</span>
+      </div>
+      <div ref={ref} style={{ width:'100%', height:200 }} />
+    </div>
+  );
+}
+
 // ─── Metric Card ──────────────────────────────────────────────────────────────
-function MetricCard({ title, value, suffix, metricKey, sparkData, benchmark }) {
+function MetricCard({ title, value, suffix, metricKey, sparkData, benchmark, isActive, onClick }) {
   const q = getQuartile(metricKey, value);
   const pct = Math.min(100, Math.round((value / benchmark) * 100));
   return (
-    <div className="glass-card p-4 metric-card-border" style={{ borderColor: q.color }}>
+    <div onClick={onClick} className="glass-card p-4 metric-card-border"
+      style={{ borderColor: q.color, cursor:'pointer', transition:'transform 0.15s, box-shadow 0.15s',
+        transform: isActive ? 'translateY(-2px)' : 'none',
+        boxShadow: isActive ? `0 8px 24px ${q.color}33` : 'none' }}>
       <div className="flex items-start justify-between mb-1">
         <span style={{ color:'rgba(255,255,255,0.55)', fontSize:11, fontWeight:600, letterSpacing:'0.05em', textTransform:'uppercase' }}>{title}</span>
-        <span style={{ background:q.color+'22', color:q.color, border:`1px solid ${q.color}44`, borderRadius:6, padding:'1px 6px', fontSize:10, fontWeight:700 }}>{q.q}</span>
+        <div className="flex items-center gap-1">
+          <span style={{ background:q.color+'22', color:q.color, border:`1px solid ${q.color}44`, borderRadius:6, padding:'1px 6px', fontSize:10, fontWeight:700 }}>{q.q}</span>
+          <span style={{ color:'rgba(255,255,255,0.3)', fontSize:12 }}>{isActive ? '▲' : '▼'}</span>
+        </div>
       </div>
       <div className="flex items-end gap-1 mt-1">
         <span style={{ fontSize:28, fontWeight:800, color:'#fff', lineHeight:1 }}>{value}</span>
@@ -773,6 +819,7 @@ function LoadingScreen({ message }) {
 function Dashboard({ weekData: rawWeekData, onReset, user, onSignOut }) {
   const [selectedIdx, setSelectedIdx] = useState(rawWeekData.length - 1);
   const [showRolling, setShowRolling] = useState(false);
+  const [activeMetric, setActiveMetric] = useState(null);
   const [catchupOverrides, setCatchupOverrides] = useState({});
   const debounceRef = useRef({});
 
@@ -853,8 +900,17 @@ function Dashboard({ weekData: rawWeekData, onReset, user, onSignOut }) {
 
         {/* Metric cards */}
         <div style={{ display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(210px,1fr))',gap:14,marginBottom:20 }}>
-          {metrics.map(m => <MetricCard key={m.metricKey} {...m} />)}
+          {metrics.map(m => <MetricCard key={m.metricKey} {...m}
+            isActive={activeMetric === m.metricKey}
+            onClick={() => setActiveMetric(prev => prev === m.metricKey ? null : m.metricKey)}
+          />)}
         </div>
+
+        {/* Metric drilldown */}
+        {activeMetric && (() => {
+          const m = metrics.find(x => x.metricKey === activeMetric);
+          return m ? <MetricDrilldown metricKey={m.metricKey} title={m.title} suffix={m.suffix} weekData={displayData} benchmark={m.benchmark} /> : null;
+        })()}
 
         {/* Chart */}
         <div className="glass-card p-5 mb-5">
