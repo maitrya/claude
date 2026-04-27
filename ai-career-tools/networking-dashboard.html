@@ -720,14 +720,17 @@ function LoginScreen({ onSkip }) {
     if (!email.trim()) { setError('Please enter your email address.'); return; }
     setLoading(true);
     setError('');
-    const { error: authErr } = await supabase.auth.signInWithOtp({
-      email: email.trim(),
-      options: { emailRedirectTo: 'https://maitrya.github.io/claude/ai-career-tools/networking-dashboard.html' },
-    });
-    if (authErr) {
-      setError(authErr.message || 'Something went wrong. Please try again.');
-    } else {
+    try {
+      const res = await fetch('https://dsnkabdmposyukcedduy.supabase.co/functions/v1/send-magic-link', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Something went wrong.');
       setSent(true);
+    } catch(e) {
+      setError(e.message || 'Something went wrong. Please try again.');
     }
     setLoading(false);
   };
