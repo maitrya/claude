@@ -1,4 +1,4 @@
-<!-- v7: Edge Function active, cache buster 2026-04-27 -->
+<!-- v8: Goal setting, goal comparison, dedup, lag note 2026-04-27 -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -335,6 +335,29 @@ async function updateCatchupsInDB(userId, weekKey, catchupsBooked) {
     .eq('week_key', weekKey);
 }
 
+// ─── Profile / Goals helpers ──────────────────────────────────────────────────
+async function loadProfile(userId) {
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('*')
+    .eq('id', userId)
+    .single();
+  if (error) { console.error('loadProfile error:', error); return null; }
+  return data;
+}
+
+async function saveGoals(userId, connectionGoal, messageGoal) {
+  const { error } = await supabase
+    .from('profiles')
+    .update({
+      weekly_connection_goal: connectionGoal,
+      weekly_message_goal: messageGoal,
+      goals_set: true,
+    })
+    .eq('id', userId);
+  if (error) throw error;
+}
+
 // ─── Sparkline ────────────────────────────────────────────────────────────────
 function Sparkline({ data, color }) {
   const ref = useRef(null);
@@ -421,9 +444,11 @@ function MetricDrilldown({ metricKey, title, suffix, weekData, benchmark }) {
 }
 
 // ─── Metric Card ──────────────────────────────────────────────────────────────
-function MetricCard({ title, value, suffix, metricKey, sparkData, benchmark, isActive, onClick }) {
+function MetricCard({ title, value, suffix, metricKey, sparkData, benchmark, goal, isActive, onClick, lagNote }) {
   const q = getQuartile(metricKey, value);
-  const pct = Math.min(100, Math.round((value / benchmark) * 100));
+  const goalTarget = goal || benchmark;
+  const goalPct = Math.min(100, Math.round((value / goalTarget) * 100));
+  const goalMet = value >= goalTarget;
   return (
     <div onClick={onClick} className="glass-card p-4 metric-card-border"
       style={{ borderColor: q.color, cursor:'pointer', transition:'transform 0.15s, box-shadow 0.15s',
@@ -441,10 +466,18 @@ function MetricCard({ title, value, suffix, metricKey, sparkData, benchmark, isA
         {suffix && <span style={{ fontSize:13, color:'rgba(255,255,255,0.45)', marginBottom:3 }}>{suffix}</span>}
       </div>
       <div style={{ color:q.color, fontSize:11, marginTop:2, marginBottom:4 }}>{q.label}</div>
-      <div style={{ height:4, borderRadius:4, background:'rgba(255,255,255,0.08)', margin:'6px 0' }}>
-        <div style={{ height:'100%', borderRadius:4, background:q.color, width:pct+'%', transition:'width 0.5s ease' }} />
+
+      {/* Goal progress bar */}
+      <div style={{ height:4, borderRadius:4, background:'rgba(255,255,255,0.08)', margin:'6px 0', position:'relative' }}>
+        <div style={{ height:'100%', borderRadius:4, background: goalMet ? '#10b981' : q.color, width:goalPct+'%', transition:'width 0.5s ease' }} />
       </div>
-      <div style={{ color:'rgba(255,255,255,0.3)', fontSize:10 }}>Benchmark: {benchmark}{suffix||''}</div>
+      <div className="flex items-center justify-between">
+        <div style={{ color:'rgba(255,255,255,0.3)', fontSize:10 }}>
+          Goal: <span style={{ color: goalMet ? '#10b981' : 'rgba(255,255,255,0.45)', fontWeight:600 }}>{goalTarget}{suffix||''}</span>
+          {goalMet && <span style={{ color:'#10b981', marginLeft:4 }}>✓</span>}
+        </div>
+        {lagNote && <div style={{ color:'rgba(255,255,255,0.25)', fontSize:9, fontStyle:'italic' }}>⚠ may lag</div>}
+      </div>
       <Sparkline data={sparkData} color={q.color} />
     </div>
   );
@@ -592,20 +625,26 @@ function UploadScreen({ onData, onSample, user }) {
     const csvData = {};
     Object.entries(files).forEach(([k, v]) => { csvData[k] = v.rows; });
     const processed = processCSVData(csvData);
-    const weeks = aggregateByWeek(processed);
+    const newWeeks  = aggregateByWeek(processed);
 
     if (user) {
       setSaving(true);
       try {
-        await saveWeekDataToDB(user.id, weeks);
+        // Save new weeks to DB (upserts by week_key — idempotent)
+        await saveWeekDataToDB(user.id, newWeeks);
+        // Reload ALL weeks from DB so prior uploads are merged in
+        const allWeeks = await loadWeekDataFromDB(user.id);
+        setSaving(false);
+        onData(allWeeks && allWeeks.length > 0 ? allWeeks : newWeeks);
+        return;
       } catch (err) {
-        console.error('Failed to save to Supabase:', err);
-        // Non-fatal — still show dashboard
+        console.error('Failed to save/load from Supabase:', err);
+        // Non-fatal — fall through to show dashboard with local data
       }
       setSaving(false);
     }
 
-    onData(weeks);
+    onData(newWeeks);
   };
 
   return (
@@ -808,6 +847,138 @@ function LoginScreen({ onSkip }) {
   );
 }
 
+// ─── Goal Screen (first-time setup) ──────────────────────────────────────────
+function GoalScreen({ onSave, userEmail }) {
+  const [connGoal, setConnGoal]   = useState('20');
+  const [msgGoal,  setMsgGoal]    = useState('20');
+  const [saving,   setSaving]     = useState(false);
+  const [error,    setError]      = useState('');
+
+  const handleSave = async () => {
+    const c = parseInt(connGoal) || 20;
+    const m = parseInt(msgGoal)  || 20;
+    if (c < 1 || m < 1) { setError('Goals must be at least 1.'); return; }
+    setSaving(true);
+    setError('');
+    try { await onSave(c, m); }
+    catch(e) { setError('Failed to save. Please try again.'); setSaving(false); }
+  };
+
+  const presets = [
+    { label:'Casual', conn:10, msg:10, desc:'Just getting started' },
+    { label:'Active', conn:20, msg:20, desc:'Standard Prepped target' },
+    { label:'Intensive', conn:35, msg:35, desc:'Full job-search mode' },
+  ];
+
+  return (
+    <div className="min-h-screen flex flex-col items-center justify-center p-6"
+      style={{ background:'linear-gradient(135deg, #120818 0%, #1e0a30 100%)' }}>
+      <div style={{ maxWidth:480, width:'100%' }}>
+        <div className="text-center mb-8">
+          <div style={{ fontSize:13,fontWeight:700,letterSpacing:'0.15em',color:'#ec4899',textTransform:'uppercase',marginBottom:14 }}>Prepped Talent</div>
+          <div style={{ fontSize:42, marginBottom:12 }}>🎯</div>
+          <h1 style={{ fontSize:28,fontWeight:800,color:'#fff',lineHeight:1.2,marginBottom:10 }}>
+            Set your weekly goals
+          </h1>
+          <p style={{ color:'rgba(255,255,255,0.45)',fontSize:14,lineHeight:1.6 }}>
+            We'll track how you're performing against these each week.
+            {userEmail && <><br/><span style={{ color:'#a855f7',fontSize:13 }}>{userEmail}</span></>}
+          </p>
+        </div>
+
+        {/* Preset buttons */}
+        <div style={{ display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:8,marginBottom:20 }}>
+          {presets.map(p => (
+            <button key={p.label} onClick={() => { setConnGoal(String(p.conn)); setMsgGoal(String(p.msg)); }}
+              style={{ background: connGoal==p.conn&&msgGoal==p.msg ? 'rgba(236,72,153,0.2)':'rgba(255,255,255,0.04)',
+                border: connGoal==p.conn&&msgGoal==p.msg ? '1px solid rgba(236,72,153,0.5)':'1px solid rgba(255,255,255,0.1)',
+                borderRadius:10,padding:'10px 8px',cursor:'pointer',transition:'all 0.15s',textAlign:'center' }}>
+              <div style={{ color:'#fff',fontWeight:700,fontSize:13 }}>{p.label}</div>
+              <div style={{ color:'rgba(255,255,255,0.4)',fontSize:10,marginTop:2 }}>{p.desc}</div>
+            </button>
+          ))}
+        </div>
+
+        <div className="glass-card p-6">
+          <div style={{ marginBottom:16 }}>
+            <label style={{ color:'rgba(255,255,255,0.5)',fontSize:12,fontWeight:600,textTransform:'uppercase',letterSpacing:'0.05em',display:'block',marginBottom:8 }}>
+              Weekly connection requests
+            </label>
+            <div style={{ display:'flex',alignItems:'center',gap:10 }}>
+              <input type="number" min="1" max="200" className="auth-input" style={{ maxWidth:100,textAlign:'center',fontWeight:700,fontSize:18 }}
+                value={connGoal} onChange={e => setConnGoal(e.target.value)} />
+              <span style={{ color:'rgba(255,255,255,0.35)',fontSize:13 }}>requests / week</span>
+            </div>
+          </div>
+          <div style={{ marginBottom:20 }}>
+            <label style={{ color:'rgba(255,255,255,0.5)',fontSize:12,fontWeight:600,textTransform:'uppercase',letterSpacing:'0.05em',display:'block',marginBottom:8 }}>
+              Weekly messages sent
+            </label>
+            <div style={{ display:'flex',alignItems:'center',gap:10 }}>
+              <input type="number" min="1" max="200" className="auth-input" style={{ maxWidth:100,textAlign:'center',fontWeight:700,fontSize:18 }}
+                value={msgGoal} onChange={e => setMsgGoal(e.target.value)} />
+              <span style={{ color:'rgba(255,255,255,0.35)',fontSize:13 }}>messages / week</span>
+            </div>
+          </div>
+          {error && <p style={{ color:'#ef4444',fontSize:13,marginBottom:12 }}>{error}</p>}
+          <button className="auth-btn-primary" onClick={handleSave} disabled={saving}
+            style={{ display:'flex',alignItems:'center',justifyContent:'center',gap:10 }}>
+            {saving ? <><span className="spinner" style={{ width:18,height:18 }} /> Saving…</> : 'Start tracking →'}
+          </button>
+        </div>
+        <p style={{ color:'rgba(255,255,255,0.25)',fontSize:12,textAlign:'center',marginTop:16 }}>
+          You can update your goals anytime from the dashboard.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+// ─── Goal Edit Modal ──────────────────────────────────────────────────────────
+function GoalEditModal({ goals, onSave, onClose, saving }) {
+  const [connGoal, setConnGoal] = useState(String(goals.connectionGoal));
+  const [msgGoal,  setMsgGoal]  = useState(String(goals.messageGoal));
+
+  const handleSave = () => {
+    const c = parseInt(connGoal) || 20;
+    const m = parseInt(msgGoal)  || 20;
+    onSave(c, m);
+  };
+
+  return (
+    <div style={{ position:'fixed',inset:0,background:'rgba(0,0,0,0.7)',zIndex:100,display:'flex',alignItems:'center',justifyContent:'center',padding:16 }}
+      onClick={e => e.target === e.currentTarget && onClose()}>
+      <div className="glass-card p-6" style={{ maxWidth:380,width:'100%',animation:'fadeIn 0.2s ease' }}>
+        <div className="flex items-center justify-between mb-5">
+          <h2 style={{ color:'#fff',fontWeight:800,fontSize:18,margin:0 }}>Edit weekly goals</h2>
+          <button onClick={onClose} style={{ background:'none',border:'none',color:'rgba(255,255,255,0.4)',fontSize:20,cursor:'pointer' }}>✕</button>
+        </div>
+        <div style={{ marginBottom:14 }}>
+          <label style={{ color:'rgba(255,255,255,0.5)',fontSize:12,fontWeight:600,textTransform:'uppercase',letterSpacing:'0.05em',display:'block',marginBottom:8 }}>
+            Connection requests / week
+          </label>
+          <input type="number" min="1" className="auth-input" value={connGoal} onChange={e => setConnGoal(e.target.value)} />
+        </div>
+        <div style={{ marginBottom:20 }}>
+          <label style={{ color:'rgba(255,255,255,0.5)',fontSize:12,fontWeight:600,textTransform:'uppercase',letterSpacing:'0.05em',display:'block',marginBottom:8 }}>
+            Messages / week
+          </label>
+          <input type="number" min="1" className="auth-input" value={msgGoal} onChange={e => setMsgGoal(e.target.value)} />
+        </div>
+        <div style={{ display:'flex',gap:8 }}>
+          <button onClick={onClose} style={{ flex:1,padding:'11px',borderRadius:10,fontSize:13,fontWeight:600,cursor:'pointer',border:'1px solid rgba(255,255,255,0.12)',background:'rgba(255,255,255,0.05)',color:'rgba(255,255,255,0.5)' }}>
+            Cancel
+          </button>
+          <button onClick={handleSave} disabled={saving}
+            style={{ flex:2,padding:'11px',borderRadius:10,fontSize:13,fontWeight:700,cursor:'pointer',border:'none',background:'linear-gradient(135deg,#ec4899,#a855f7)',color:'#fff',opacity:saving?0.6:1,display:'flex',alignItems:'center',justifyContent:'center',gap:8 }}>
+            {saving ? <><span className="spinner" style={{ width:16,height:16 }} /> Saving…</> : 'Save goals'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Loading screen ───────────────────────────────────────────────────────────
 function LoadingScreen({ message }) {
   return (
@@ -823,11 +994,13 @@ function LoadingScreen({ message }) {
 }
 
 // ─── Dashboard ────────────────────────────────────────────────────────────────
-function Dashboard({ weekData: rawWeekData, onReset, user, onSignOut }) {
+function Dashboard({ weekData: rawWeekData, onReset, user, onSignOut, goals, onGoalsSaved }) {
   const [selectedIdx, setSelectedIdx] = useState(rawWeekData.length - 1);
   const [showRolling, setShowRolling] = useState(false);
   const [activeMetric, setActiveMetric] = useState(null);
   const [catchupOverrides, setCatchupOverrides] = useState({});
+  const [showGoalEdit, setShowGoalEdit] = useState(false);
+  const [goalSaving, setGoalSaving] = useState(false);
   const debounceRef = useRef({});
 
   const rollingData = useMemo(() => rawWeekData.map((w,i) => {
@@ -854,16 +1027,29 @@ function Dashboard({ weekData: rawWeekData, onReset, user, onSignOut }) {
     }
   }, [rawSelected?.key, user]);
 
+  const handleGoalsSave = async (c, m) => {
+    setGoalSaving(true);
+    try {
+      if (user) await saveGoals(user.id, c, m);
+      onGoalsSaved({ connectionGoal: c, messageGoal: m });
+      setShowGoalEdit(false);
+    } catch(e) { console.error(e); }
+    setGoalSaving(false);
+  };
+
   const spark = k => displayData.map(w => w[k]||0);
   const metrics = [
-    { title:'Requests Sent',    value:selectedWeek?.requestsSent  ||0, suffix:'',  metricKey:'requestsSent',   sparkData:spark('requestsSent'),   benchmark:BENCHMARKS.requestsSent },
-    { title:'Acceptance Rate',  value:selectedWeek?.acceptanceRate||0, suffix:'%', metricKey:'acceptanceRate', sparkData:spark('acceptanceRate'),  benchmark:BENCHMARKS.acceptanceRate },
-    { title:'Messages Sent',    value:selectedWeek?.messagesSent  ||0, suffix:'',  metricKey:'messagesSent',   sparkData:spark('messagesSent'),    benchmark:BENCHMARKS.messagesSent },
+    { title:'Requests Sent',    value:selectedWeek?.requestsSent  ||0, suffix:'',  metricKey:'requestsSent',   sparkData:spark('requestsSent'),   benchmark:BENCHMARKS.requestsSent, goal: goals?.connectionGoal },
+    { title:'Acceptance Rate',  value:selectedWeek?.acceptanceRate||0, suffix:'%', metricKey:'acceptanceRate', sparkData:spark('acceptanceRate'),  benchmark:BENCHMARKS.acceptanceRate, lagNote:true },
+    { title:'Messages Sent',    value:selectedWeek?.messagesSent  ||0, suffix:'',  metricKey:'messagesSent',   sparkData:spark('messagesSent'),    benchmark:BENCHMARKS.messagesSent, goal: goals?.messageGoal },
     { title:'Catch-ups Booked', value:catchupCount,                     suffix:'',  metricKey:'catchupsBooked', sparkData:spark('catchupsBooked'),  benchmark:BENCHMARKS.catchupsBooked },
   ];
 
   return (
     <div style={{ minHeight:'100vh', background:'linear-gradient(135deg,#120818 0%,#1e0a30 100%)', padding:'24px 16px' }}>
+      {showGoalEdit && (
+        <GoalEditModal goals={goals} onSave={handleGoalsSave} onClose={() => setShowGoalEdit(false)} saving={goalSaving} />
+      )}
       <div style={{ maxWidth:1100, margin:'0 auto' }}>
 
         {/* Header */}
@@ -876,6 +1062,10 @@ function Dashboard({ weekData: rawWeekData, onReset, user, onSignOut }) {
             {user && (
               <div style={{ display:'flex',alignItems:'center',gap:8 }}>
                 <span style={{ color:'rgba(255,255,255,0.45)',fontSize:12,maxWidth:200,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap' }}>{user.email}</span>
+                <button onClick={() => setShowGoalEdit(true)}
+                  style={{ background:'rgba(168,85,247,0.12)',border:'1px solid rgba(168,85,247,0.25)',color:'#a855f7',borderRadius:7,padding:'5px 11px',fontSize:11,fontWeight:600,cursor:'pointer' }}>
+                  🎯 Goals
+                </button>
                 <button onClick={onSignOut}
                   style={{ background:'rgba(239,68,68,0.12)',border:'1px solid rgba(239,68,68,0.25)',color:'#ef4444',borderRadius:7,padding:'5px 11px',fontSize:11,fontWeight:600,cursor:'pointer' }}>
                   Sign out
@@ -910,6 +1100,8 @@ function Dashboard({ weekData: rawWeekData, onReset, user, onSignOut }) {
           {metrics.map(m => <MetricCard key={m.metricKey} {...m}
             isActive={activeMetric === m.metricKey}
             onClick={() => setActiveMetric(prev => prev === m.metricKey ? null : m.metricKey)}
+            goal={m.goal}
+            lagNote={m.lagNote}
           />)}
         </div>
 
@@ -955,12 +1147,13 @@ function Dashboard({ weekData: rawWeekData, onReset, user, onSignOut }) {
 }
 
 // ─── App ──────────────────────────────────────────────────────────────────────
-// Screens: 'loading' | 'login' | 'upload' | 'dashboard'
+// Screens: 'loading' | 'login' | 'goals' | 'upload' | 'dashboard'
 function App() {
   const [screen, setScreen]     = useState('loading');
   const [user, setUser]         = useState(null);
   const [weekData, setWeekData] = useState(null);
   const [loadMsg, setLoadMsg]   = useState('Loading…');
+  const [goals, setGoals]       = useState({ connectionGoal: 20, messageGoal: 20 });
 
   // On mount: check existing session, then listen for auth changes
   useEffect(() => {
@@ -969,7 +1162,6 @@ function App() {
     const init = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (!mounted) return;
-
       if (session?.user) {
         setUser(session.user);
         await tryLoadDB(session.user, mounted);
@@ -982,12 +1174,8 @@ function App() {
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (!mounted) return;
-      // Only act on actual sign-in (magic link callback) or sign-out
-      // Ignore TOKEN_REFRESHED, USER_UPDATED etc. to avoid reload on tab focus
       if (event === 'SIGNED_IN' && session?.user) {
         setUser(session.user);
-        // Only load from DB if this is a fresh login (not a token refresh)
-        // Check if we're on the login screen to avoid re-loading when tab regains focus
         setScreen(prev => {
           if (prev === 'login' || prev === 'loading') {
             tryLoadDB(session.user, mounted);
@@ -997,6 +1185,7 @@ function App() {
       } else if (event === 'SIGNED_OUT') {
         setUser(null);
         setWeekData(null);
+        setGoals({ connectionGoal: 20, messageGoal: 20 });
         setScreen('login');
       }
     });
@@ -1006,9 +1195,26 @@ function App() {
 
   const tryLoadDB = async (u, mounted) => {
     if (!mounted) return;
-    setLoadMsg('Loading your saved data…');
+    setLoadMsg('Loading your account…');
     setScreen('loading');
     try {
+      // Load profile first (includes goals)
+      const profile = await loadProfile(u.id);
+      if (!mounted) return;
+
+      if (profile) {
+        setGoals({
+          connectionGoal: profile.weekly_connection_goal || 20,
+          messageGoal:    profile.weekly_message_goal    || 20,
+        });
+        // If goals not set yet → show goal-setting screen first
+        if (!profile.goals_set) {
+          setScreen('goals');
+          return;
+        }
+      }
+
+      // Load week data
       const data = await loadWeekDataFromDB(u.id);
       if (!mounted) return;
       if (data && data.length > 0) {
@@ -1023,6 +1229,19 @@ function App() {
     }
   };
 
+  const handleGoalsSave = async (connectionGoal, messageGoal) => {
+    if (user) await saveGoals(user.id, connectionGoal, messageGoal);
+    setGoals({ connectionGoal, messageGoal });
+    // After saving goals → go to upload screen
+    const data = await loadWeekDataFromDB(user.id);
+    if (data && data.length > 0) {
+      setWeekData(data);
+      setScreen('dashboard');
+    } else {
+      setScreen('upload');
+    }
+  };
+
   const handleData = (weeks) => {
     setWeekData(weeks);
     setScreen('dashboard');
@@ -1033,27 +1252,19 @@ function App() {
     setScreen('dashboard');
   };
 
-  const handleReset = () => {
-    setScreen('upload');
-  };
+  const handleReset  = () => setScreen('upload');
+  const handleSignOut = async () => { await supabase.auth.signOut(); };
+  const handleSkipLogin = () => setScreen('upload');
 
-  const handleSignOut = async () => {
-    await supabase.auth.signOut();
-    // onAuthStateChange will handle state cleanup
-  };
-
-  const handleSkipLogin = () => {
-    setScreen('upload');
-  };
-
-  if (screen === 'loading') return <LoadingScreen message={loadMsg} />;
-  if (screen === 'login')   return <LoginScreen onSkip={handleSkipLogin} />;
-  if (screen === 'upload')  return <UploadScreen onData={handleData} onSample={handleSample} user={user} />;
+  if (screen === 'loading')   return <LoadingScreen message={loadMsg} />;
+  if (screen === 'login')     return <LoginScreen onSkip={handleSkipLogin} />;
+  if (screen === 'goals')     return <GoalScreen onSave={handleGoalsSave} userEmail={user?.email} />;
+  if (screen === 'upload')    return <UploadScreen onData={handleData} onSample={handleSample} user={user} />;
   if (screen === 'dashboard' && weekData) {
-    return <Dashboard weekData={weekData} onReset={handleReset} user={user} onSignOut={handleSignOut} />;
+    return <Dashboard weekData={weekData} onReset={handleReset} user={user} onSignOut={handleSignOut}
+      goals={goals} onGoalsSaved={g => setGoals(g)} />;
   }
 
-  // Fallback
   return <LoadingScreen message="Something went wrong. Refreshing…" />;
 }
 
