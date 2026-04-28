@@ -1,4 +1,4 @@
-<!-- v8: Goal setting, goal comparison, dedup, lag note 2026-04-27 -->
+<!-- v9: AI catch-up detection, platform benchmarks, CatchupReviewModal 2026-04-28 -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -358,6 +358,118 @@ async function saveGoals(userId, connectionGoal, messageGoal) {
   if (error) throw error;
 }
 
+// ─── Catch-up flag helpers ────────────────────────────────────────────────────
+function makeThreadId(weekKey, contactName) {
+  // Simple stable ID: base64 of weekKey + contactName
+  try { return btoa(unescape(encodeURIComponent(`${weekKey}::${contactName}`))); }
+  catch(e) { return `${weekKey}::${contactName}`; }
+}
+
+async function detectCatchups(userId, weekData, candidateName) {
+  // Build threads from message data
+  const threads = [];
+  weekData.forEach(week => {
+    if (!week.messages?.length) return;
+    // Group messages by recipient (each recipient = one thread)
+    const byContact = {};
+    week.messages.forEach(m => {
+      const contact = m.to || m.from || 'Unknown';
+      if (!byContact[contact]) byContact[contact] = [];
+      byContact[contact].push(m);
+    });
+    Object.entries(byContact).forEach(([contactName, msgs]) => {
+      threads.push({
+        threadId: makeThreadId(week.key, contactName),
+        contactName,
+        messages: msgs.map(m => ({
+          from: m.from || 'Me',
+          to: m.to || contactName,
+          date: m.date ? new Date(m.date).toISOString().slice(0,10) : '',
+          content: m.content || '',
+        })),
+      });
+    });
+  });
+
+  if (!threads.length) return [];
+
+  try {
+    const res = await fetch('https://dsnkabdmposyukcedduy.supabase.co/functions/v1/detect-catchups', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ threads, candidateName: candidateName || '' }),
+    });
+    if (!res.ok) return [];
+    const { flags } = await res.json();
+
+    // Only return threads where catchup was detected
+    const detected = (flags || []).filter(f => f.catchup);
+
+    // Save to DB (upsert — skip already confirmed/rejected)
+    if (detected.length && userId) {
+      // Load existing flags so we don't overwrite confirmed/rejected
+      const { data: existing } = await supabase
+        .from('catchup_flags')
+        .select('thread_id, status')
+        .eq('user_id', userId);
+      const existingMap = {};
+      (existing || []).forEach(r => { existingMap[r.thread_id] = r.status; });
+
+      const toInsert = detected
+        .filter(f => !existingMap[f.threadId]) // skip already processed
+        .map(f => {
+          // Find which week this thread belongs to
+          const weekKey = weekData.find(w =>
+            w.messages?.some(m => makeThreadId(w.key, m.to || m.from || '') === f.threadId)
+          )?.key || weekData[weekData.length-1]?.key;
+          return {
+            user_id: userId,
+            thread_id: f.threadId,
+            week_key: weekKey,
+            contact_name: f.contactName,
+            approximate_date: f.approximateDate || null,
+            excerpt: f.excerpt || '',
+            status: 'pending',
+          };
+        });
+
+      if (toInsert.length) {
+        await supabase.from('catchup_flags').insert(toInsert);
+      }
+    }
+
+    return detected;
+  } catch(e) {
+    console.error('detectCatchups error:', e);
+    return [];
+  }
+}
+
+async function loadCatchupFlags(userId) {
+  const { data } = await supabase
+    .from('catchup_flags')
+    .select('*')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false });
+  return data || [];
+}
+
+async function updateCatchupFlagStatus(flagId, status) {
+  await supabase.from('catchup_flags').update({ status }).eq('id', flagId);
+}
+
+// ─── Platform benchmarks ──────────────────────────────────────────────────────
+async function loadPlatformBenchmarks() {
+  try {
+    const { data, error } = await supabase.rpc('get_platform_benchmarks');
+    if (error) throw error;
+    return data;
+  } catch(e) {
+    console.error('loadPlatformBenchmarks error:', e);
+    return null;
+  }
+}
+
 // ─── Sparkline ────────────────────────────────────────────────────────────────
 function Sparkline({ data, color }) {
   const ref = useRef(null);
@@ -567,7 +679,7 @@ const FILE_SLOTS = [
   { key:'messages',    label:'messages.csv',     hint:'Has: From, To, Date, Content',            required:false },
 ];
 
-function UploadScreen({ onData, onSample, user }) {
+function UploadScreen({ onData, onSample, user, candidateName }) {
   const [files, setFiles]     = useState({});
   const [errors, setErrors]   = useState({});
   const [loading, setLoading] = useState(false);
@@ -634,17 +746,21 @@ function UploadScreen({ onData, onSample, user }) {
         await saveWeekDataToDB(user.id, newWeeks);
         // Reload ALL weeks from DB so prior uploads are merged in
         const allWeeks = await loadWeekDataFromDB(user.id);
+        const finalWeeks = allWeeks && allWeeks.length > 0 ? allWeeks : newWeeks;
+        // Run AI catch-up detection in background (non-blocking)
+        detectCatchups(user.id, finalWeeks, candidateName).then(pendingFlags => {
+          if (pendingFlags?.length > 0) onData(finalWeeks, pendingFlags);
+        }).catch(console.error);
         setSaving(false);
-        onData(allWeeks && allWeeks.length > 0 ? allWeeks : newWeeks);
+        onData(finalWeeks, []);
         return;
       } catch (err) {
         console.error('Failed to save/load from Supabase:', err);
-        // Non-fatal — fall through to show dashboard with local data
       }
       setSaving(false);
     }
 
-    onData(newWeeks);
+    onData(newWeeks, []);
   };
 
   return (
@@ -847,6 +963,95 @@ function LoginScreen({ onSkip }) {
   );
 }
 
+// ─── Catch-up Review Modal ────────────────────────────────────────────────────
+function CatchupReviewModal({ flags, onDone }) {
+  const [items, setItems] = useState(flags.map(f => ({ ...f, decision: null })));
+  const [saving, setSaving] = useState(false);
+
+  const decide = (id, decision) => {
+    setItems(prev => prev.map(f => f.id === id ? { ...f, decision } : f));
+  };
+
+  const handleDone = async () => {
+    setSaving(true);
+    for (const item of items) {
+      if (item.decision) await updateCatchupFlagStatus(item.id, item.decision);
+    }
+    setSaving(false);
+    onDone(items.filter(f => f.decision === 'confirmed'));
+  };
+
+  const pending = items.filter(f => !f.decision).length;
+
+  return (
+    <div style={{ position:'fixed',inset:0,background:'rgba(0,0,0,0.75)',zIndex:200,display:'flex',alignItems:'center',justifyContent:'center',padding:16 }}>
+      <div className="glass-card" style={{ maxWidth:520,width:'100%',maxHeight:'80vh',display:'flex',flexDirection:'column',animation:'fadeIn 0.2s ease' }}>
+        {/* Header */}
+        <div style={{ padding:'20px 24px 16px',borderBottom:'1px solid rgba(236,72,153,0.15)' }}>
+          <div style={{ display:'flex',alignItems:'center',gap:10,marginBottom:4 }}>
+            <span style={{ fontSize:24 }}>🤖</span>
+            <h2 style={{ color:'#fff',fontWeight:800,fontSize:18,margin:0 }}>AI Catch-up Detection</h2>
+          </div>
+          <p style={{ color:'rgba(255,255,255,0.45)',fontSize:13,margin:0 }}>
+            Found {flags.length} potential catch-up{flags.length!==1?'s':''} in your messages. Confirm or reject each one.
+          </p>
+        </div>
+
+        {/* Flags list */}
+        <div style={{ overflowY:'auto',flex:1,padding:'12px 24px' }}>
+          {items.map((item, i) => (
+            <div key={item.id || i} style={{ marginBottom:12,padding:'14px 16px',borderRadius:12,
+              background: item.decision==='confirmed' ? 'rgba(16,185,129,0.1)' : item.decision==='rejected' ? 'rgba(239,68,68,0.07)' : 'rgba(255,255,255,0.04)',
+              border: item.decision==='confirmed' ? '1px solid rgba(16,185,129,0.3)' : item.decision==='rejected' ? '1px solid rgba(239,68,68,0.2)' : '1px solid rgba(168,85,247,0.15)',
+              transition:'all 0.2s' }}>
+              <div className="flex items-center justify-between gap-3 flex-wrap">
+                <div style={{ flex:1,minWidth:0 }}>
+                  <div style={{ color:'#fff',fontWeight:700,fontSize:14 }}>{item.contact_name || 'Unknown'}</div>
+                  {item.approximate_date && (
+                    <div style={{ color:'#a855f7',fontSize:11,marginTop:2 }}>📅 {item.approximate_date}</div>
+                  )}
+                  {item.excerpt && (
+                    <div style={{ color:'rgba(255,255,255,0.4)',fontSize:12,marginTop:4,fontStyle:'italic' }}>
+                      "{item.excerpt}"
+                    </div>
+                  )}
+                </div>
+                <div style={{ display:'flex',gap:6,flexShrink:0 }}>
+                  <button onClick={() => decide(item.id || i, 'confirmed')}
+                    style={{ padding:'6px 14px',borderRadius:8,fontSize:12,fontWeight:700,cursor:'pointer',border:'none',
+                      background: item.decision==='confirmed' ? '#10b981':'rgba(16,185,129,0.15)',
+                      color: item.decision==='confirmed' ? '#fff':'#10b981', transition:'all 0.15s' }}>
+                    ✓ Yes
+                  </button>
+                  <button onClick={() => decide(item.id || i, 'rejected')}
+                    style={{ padding:'6px 14px',borderRadius:8,fontSize:12,fontWeight:700,cursor:'pointer',border:'none',
+                      background: item.decision==='rejected' ? 'rgba(239,68,68,0.4)':'rgba(239,68,68,0.1)',
+                      color: item.decision==='rejected' ? '#fff':'#ef4444', transition:'all 0.15s' }}>
+                    ✕ No
+                  </button>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Footer */}
+        <div style={{ padding:'16px 24px',borderTop:'1px solid rgba(255,255,255,0.06)',display:'flex',alignItems:'center',justifyContent:'space-between',gap:12 }}>
+          <span style={{ color:'rgba(255,255,255,0.35)',fontSize:12 }}>
+            {pending > 0 ? `${pending} remaining` : 'All reviewed ✓'}
+          </span>
+          <button onClick={handleDone} disabled={saving}
+            style={{ padding:'10px 24px',borderRadius:10,fontSize:13,fontWeight:700,cursor:'pointer',border:'none',
+              background:'linear-gradient(135deg,#ec4899,#a855f7)',color:'#fff',
+              opacity:saving?0.6:1,display:'flex',alignItems:'center',gap:8 }}>
+            {saving ? <><span className="spinner" style={{ width:16,height:16 }} /> Saving…</> : 'Done →'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Goal Screen (first-time setup) ──────────────────────────────────────────
 function GoalScreen({ onSave, userEmail }) {
   const [connGoal, setConnGoal]   = useState('20');
@@ -994,13 +1199,15 @@ function LoadingScreen({ message }) {
 }
 
 // ─── Dashboard ────────────────────────────────────────────────────────────────
-function Dashboard({ weekData: rawWeekData, onReset, user, onSignOut, goals, onGoalsSaved }) {
+function Dashboard({ weekData: rawWeekData, onReset, user, onSignOut, goals, onGoalsSaved, platformBenchmarks, initialPendingFlags }) {
   const [selectedIdx, setSelectedIdx] = useState(rawWeekData.length - 1);
   const [showRolling, setShowRolling] = useState(false);
   const [activeMetric, setActiveMetric] = useState(null);
   const [catchupOverrides, setCatchupOverrides] = useState({});
   const [showGoalEdit, setShowGoalEdit] = useState(false);
   const [goalSaving, setGoalSaving] = useState(false);
+  const [pendingFlags, setPendingFlags] = useState(initialPendingFlags || []);
+  const [showCatchupReview, setShowCatchupReview] = useState((initialPendingFlags || []).length > 0);
   const debounceRef = useRef({});
 
   const rollingData = useMemo(() => rawWeekData.map((w,i) => {
@@ -1037,18 +1244,42 @@ function Dashboard({ weekData: rawWeekData, onReset, user, onSignOut, goals, onG
     setGoalSaving(false);
   };
 
+  const handleCatchupReviewDone = (confirmed) => {
+    setShowCatchupReview(false);
+    setPendingFlags([]);
+    if (confirmed.length > 0) {
+      // Update catchup counts for relevant weeks
+      confirmed.forEach(flag => {
+        if (flag.week_key) {
+          setCatchupOverrides(prev => ({
+            ...prev,
+            [flag.week_key]: (prev[flag.week_key] || 0) + 1,
+          }));
+        }
+      });
+    }
+  };
+
+  // Use real platform benchmarks if available, fall back to hardcoded
+  const activeBenchmarks = (platformBenchmarks?.hasEnoughUsers)
+    ? { requestsSent: platformBenchmarks.requestsSent, acceptanceRate: platformBenchmarks.acceptanceRate, messagesSent: platformBenchmarks.messagesSent, catchupsBooked: platformBenchmarks.catchupsBooked }
+    : BENCHMARKS;
+
   const spark = k => displayData.map(w => w[k]||0);
   const metrics = [
-    { title:'Requests Sent',    value:selectedWeek?.requestsSent  ||0, suffix:'',  metricKey:'requestsSent',   sparkData:spark('requestsSent'),   benchmark:BENCHMARKS.requestsSent, goal: goals?.connectionGoal },
-    { title:'Acceptance Rate',  value:selectedWeek?.acceptanceRate||0, suffix:'%', metricKey:'acceptanceRate', sparkData:spark('acceptanceRate'),  benchmark:BENCHMARKS.acceptanceRate, lagNote:true },
-    { title:'Messages Sent',    value:selectedWeek?.messagesSent  ||0, suffix:'',  metricKey:'messagesSent',   sparkData:spark('messagesSent'),    benchmark:BENCHMARKS.messagesSent, goal: goals?.messageGoal },
-    { title:'Catch-ups Booked', value:catchupCount,                     suffix:'',  metricKey:'catchupsBooked', sparkData:spark('catchupsBooked'),  benchmark:BENCHMARKS.catchupsBooked },
+    { title:'Requests Sent',    value:selectedWeek?.requestsSent  ||0, suffix:'',  metricKey:'requestsSent',   sparkData:spark('requestsSent'),   benchmark:activeBenchmarks.requestsSent, goal: goals?.connectionGoal },
+    { title:'Acceptance Rate',  value:selectedWeek?.acceptanceRate||0, suffix:'%', metricKey:'acceptanceRate', sparkData:spark('acceptanceRate'),  benchmark:activeBenchmarks.acceptanceRate, lagNote:true },
+    { title:'Messages Sent',    value:selectedWeek?.messagesSent  ||0, suffix:'',  metricKey:'messagesSent',   sparkData:spark('messagesSent'),    benchmark:activeBenchmarks.messagesSent, goal: goals?.messageGoal },
+    { title:'Catch-ups Booked', value:catchupCount,                     suffix:'',  metricKey:'catchupsBooked', sparkData:spark('catchupsBooked'),  benchmark:activeBenchmarks.catchupsBooked },
   ];
 
   return (
     <div style={{ minHeight:'100vh', background:'linear-gradient(135deg,#120818 0%,#1e0a30 100%)', padding:'24px 16px' }}>
       {showGoalEdit && (
         <GoalEditModal goals={goals} onSave={handleGoalsSave} onClose={() => setShowGoalEdit(false)} saving={goalSaving} />
+      )}
+      {showCatchupReview && pendingFlags.length > 0 && (
+        <CatchupReviewModal flags={pendingFlags} onDone={handleCatchupReviewDone} />
       )}
       <div style={{ maxWidth:1100, margin:'0 auto' }}>
 
@@ -1076,6 +1307,12 @@ function Dashboard({ weekData: rawWeekData, onReset, user, onSignOut, goals, onG
               <button onClick={() => setShowRolling(false)} style={{ padding:'6px 14px',fontSize:12,fontWeight:600,cursor:'pointer',border:'none',borderRight:'1px solid rgba(255,255,255,0.12)',background:!showRolling?'rgba(217,70,239,0.2)':'transparent',color:!showRolling?'#f9a8d4':'rgba(255,255,255,0.4)' }}>Weekly</button>
               <button onClick={() => setShowRolling(true)}  style={{ padding:'6px 14px',fontSize:12,fontWeight:600,cursor:'pointer',border:'none',background:showRolling?'rgba(217,70,239,0.2)':'transparent',color:showRolling?'#f9a8d4':'rgba(255,255,255,0.4)' }}>4-Week Avg</button>
             </div>
+            {pendingFlags.length > 0 && (
+              <button onClick={() => setShowCatchupReview(true)}
+                style={{ background:'rgba(168,85,247,0.15)',border:'1px solid rgba(168,85,247,0.4)',color:'#d8b4fe',borderRadius:8,padding:'6px 14px',fontSize:12,fontWeight:700,cursor:'pointer',display:'flex',alignItems:'center',gap:6 }}>
+                🤖 {pendingFlags.length} catch-up{pendingFlags.length!==1?'s':''} to review
+              </button>
+            )}
             <button onClick={onReset} style={{ background:'rgba(255,255,255,0.07)',border:'1px solid rgba(255,255,255,0.12)',color:'rgba(255,255,255,0.5)',borderRadius:8,padding:'6px 14px',fontSize:12,cursor:'pointer' }}>← New Upload</button>
           </div>
         </div>
@@ -1094,6 +1331,16 @@ function Dashboard({ weekData: rawWeekData, onReset, user, onSignOut, goals, onG
             ))}
           </div>
         </div>
+
+        {/* Platform benchmark banner */}
+        {platformBenchmarks && !platformBenchmarks.hasEnoughUsers && (
+          <div className="glass-card-dark" style={{ padding:'10px 16px',marginBottom:14,display:'flex',alignItems:'center',gap:10 }}>
+            <span style={{ fontSize:16 }}>📊</span>
+            <span style={{ color:'rgba(255,255,255,0.45)',fontSize:12 }}>
+              Platform benchmarks unlock at <strong style={{ color:'#a855f7' }}>5 active users</strong> — currently <strong style={{ color:'#ec4899' }}>{platformBenchmarks.userCount}/5</strong>. Showing default targets for now.
+            </span>
+          </div>
+        )}
 
         {/* Metric cards */}
         <div style={{ display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(210px,1fr))',gap:14,marginBottom:20 }}>
@@ -1149,11 +1396,13 @@ function Dashboard({ weekData: rawWeekData, onReset, user, onSignOut, goals, onG
 // ─── App ──────────────────────────────────────────────────────────────────────
 // Screens: 'loading' | 'login' | 'goals' | 'upload' | 'dashboard'
 function App() {
-  const [screen, setScreen]     = useState('loading');
-  const [user, setUser]         = useState(null);
-  const [weekData, setWeekData] = useState(null);
-  const [loadMsg, setLoadMsg]   = useState('Loading…');
-  const [goals, setGoals]       = useState({ connectionGoal: 20, messageGoal: 20 });
+  const [screen, setScreen]           = useState('loading');
+  const [user, setUser]               = useState(null);
+  const [weekData, setWeekData]       = useState(null);
+  const [loadMsg, setLoadMsg]         = useState('Loading…');
+  const [goals, setGoals]             = useState({ connectionGoal: 20, messageGoal: 20 });
+  const [platformBenchmarks, setPlatformBenchmarks] = useState(null);
+  const [pendingFlags, setPendingFlags] = useState([]);
 
   // On mount: check existing session, then listen for auth changes
   useEffect(() => {
@@ -1162,6 +1411,8 @@ function App() {
     const init = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (!mounted) return;
+      // Load platform benchmarks in background (works for anon too)
+      loadPlatformBenchmarks().then(b => { if (mounted) setPlatformBenchmarks(b); }).catch(console.error);
       if (session?.user) {
         setUser(session.user);
         await tryLoadDB(session.user, mounted);
@@ -1242,8 +1493,9 @@ function App() {
     }
   };
 
-  const handleData = (weeks) => {
+  const handleData = (weeks, flags) => {
     setWeekData(weeks);
+    setPendingFlags(flags || []);
     setScreen('dashboard');
   };
 
@@ -1262,7 +1514,9 @@ function App() {
   if (screen === 'upload')    return <UploadScreen onData={handleData} onSample={handleSample} user={user} />;
   if (screen === 'dashboard' && weekData) {
     return <Dashboard weekData={weekData} onReset={handleReset} user={user} onSignOut={handleSignOut}
-      goals={goals} onGoalsSaved={g => setGoals(g)} />;
+      goals={goals} onGoalsSaved={g => setGoals(g)}
+      platformBenchmarks={platformBenchmarks}
+      initialPendingFlags={pendingFlags} />;
   }
 
   return <LoadingScreen message="Something went wrong. Refreshing…" />;
