@@ -563,9 +563,17 @@ function MetricCard({ title, value, suffix, metricKey, sparkData, benchmark, goa
   const goalMet = value >= goalTarget;
   return (
     <div onClick={onClick} className="glass-card p-4 metric-card-border"
-      style={{ borderColor: q.color, cursor:'pointer', transition:'transform 0.15s, box-shadow 0.15s',
-        transform: isActive ? 'translateY(-2px)' : 'none',
-        boxShadow: isActive ? `0 8px 24px ${q.color}33` : 'none' }}>
+style={{
+  cursor: 'pointer',
+  transition: 'all 0.2s ease',
+  borderColor: isActive ? q.color : 'rgba(255,255,255,0.08)',
+  borderWidth: isActive ? '2px' : '1px',
+  borderStyle: 'solid',
+  transform: isActive ? 'translateY(-3px) scale(1.02)' : 'none',
+  boxShadow: isActive ? `0 0 0 3px ${q.color}, 0 0 40px ${q.color}99` : 'none',
+  background: isActive ? `${q.color}22` : 'rgba(45,16,87,0.5)',
+  borderRadius: 16,
+}}
       <div className="flex items-start justify-between mb-1">
         <span style={{ color:'rgba(255,255,255,0.55)', fontSize:11, fontWeight:600, letterSpacing:'0.05em', textTransform:'uppercase' }}>{title}</span>
         <div className="flex items-center gap-1">
