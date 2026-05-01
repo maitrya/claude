@@ -780,7 +780,7 @@ function UploadScreen({ onData, onSample, user, candidateName }) {
         <div className="text-center mb-8">
 <img src="https://assets.cdn.filesafe.space/eYi8w8ZauVCmsWEawB6j/media/69a52900167da463cdd72967.webp" alt="Prepped Talent" style={{ height: 52, display: 'block', margin: '0 auto 24px' }} />
           <h1 style={{ fontSize:32,fontWeight:800,color:'#fff',lineHeight:1.15,marginBottom:10 }}>
-            LinkedIn Networking<br/>Dashboard <span className="gradient-text">V2</span>
+            LinkedIn Networking<br/> <span className="gradient-text">V2</span>
           </h1>
           <p style={{ color:'rgba(255,255,255,0.45)',fontSize:15 }}>
             Upload your LinkedIn CSV exports to track your networking performance.
@@ -837,7 +837,7 @@ function UploadScreen({ onData, onSample, user, candidateName }) {
             display:'flex',alignItems:'center',justifyContent:'center',gap:10,
           }}>
           {saving ? <><span className="spinner" style={{ width:18,height:18 }} /> Saving to your account…</> :
-           canGo ? 'View My Dashboard →' : 'Upload at least Connections.csv or Invitations.csv'}
+           canGo ? 'View My  →' : 'Upload at least Connections.csv or Invitations.csv'}
         </button>
 
         <div className="text-center mb-6">
@@ -919,7 +919,7 @@ function LoginScreen({ onSkip }) {
         <div className="text-center mb-8">
 <img src="https://assets.cdn.filesafe.space/eYi8w8ZauVCmsWEawB6j/media/69a52900167da463cdd72967.webp" alt="Prepped Talent" style={{ height: 52, display: 'block', margin: '0 auto 24px' }} />
           <h1 style={{ fontSize:30,fontWeight:800,color:'#fff',lineHeight:1.2,marginBottom:10 }}>
-            LinkedIn Networking<br/><span className="gradient-text">Dashboard</span>
+            LinkedIn Networking<br/><span className="gradient-text"></span>
           </h1>
           <p style={{ color:'rgba(255,255,255,0.45)',fontSize:14,lineHeight:1.6 }}>
             Sign in to save your data and track progress week-over-week.
@@ -1189,7 +1189,7 @@ function GoalScreen({ onSave, userEmail }) {
           </button>
         </div>
         <p style={{ color:'rgba(255,255,255,0.25)',fontSize:12,textAlign:'center',marginTop:16 }}>
-          You can update your goals anytime from the dashboard.
+          You can update your goals anytime from the .
         </p>
       </div>
     </div>
@@ -1342,10 +1342,10 @@ function Dashboard({ weekData: rawWeekData, onReset, user, onSignOut, goals, onG
 
         {/* Header */}
         <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
-          <div>
-            <div style={{ fontSize:11,fontWeight:700,letterSpacing:'0.15em',color:'#ec4899',textTransform:'uppercase' }}>Prepped Talent</div>
-            <h1 style={{ fontSize:22,fontWeight:800,color:'#fff',margin:0 }}>Networking Dashboard <span className="gradient-text">V2</span></h1>
-          </div>
+<div style={{ display:'flex', alignItems:'center', gap:12 }}>
+  <img src="https://assets.cdn.filesafe.space/eYi8w8ZauVCmsWEawB6j/media/69a52900167da463cdd72967.webp" alt="Prepped Talent" style={{ height:32 }} />
+  <h1 style={{ fontSize:22,fontWeight:800,color:'#fff',margin:0 }}>Networking Dashboard <span className="gradient-text">V2</span></h1>
+</div>
           <div className="flex items-center gap-3 flex-wrap">
             {user && (
               <div style={{ display:'flex',alignItems:'center',gap:8 }}>
