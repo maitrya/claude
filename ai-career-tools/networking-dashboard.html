@@ -1,4 +1,4 @@
-<!-- v10: OAuth (Google + LinkedIn) + email fallback + Kajabi auto-auth ready 2026-04-30 -->
+<!-- v11: Fix data load (DESC limit 12) + paginated message fetch + soft render cap 2026-05-04 -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -240,21 +240,56 @@ function buildSampleData() {
 
 // ─── Supabase helpers ─────────────────────────────────────────────────────────
 async function loadWeekDataFromDB(userId) {
-  const { data: weekRows, error: weekErr } = await supabase
+  // FIX: order DESC + limit 12 to get the LATEST 12 weeks (not oldest).
+  // Then reverse so chronological order is preserved for charts.
+  const { data: weekRowsDesc, error: weekErr } = await supabase
     .from('networking_weeks')
     .select('*')
     .eq('user_id', userId)
-    .order('week_key', { ascending: true })
+    .order('week_key', { ascending: false })
     .limit(12);
 
-  if (weekErr || !weekRows || weekRows.length === 0) return null;
+  if (weekErr || !weekRowsDesc || weekRowsDesc.length === 0) return null;
 
+  const weekRows = [...weekRowsDesc].reverse(); // ascending again for display
   const weekKeys = weekRows.map(r => r.week_key);
 
-  const [{ data: connRows }, { data: msgRows }] = await Promise.all([
-    supabase.from('connections').select('*').eq('user_id', userId).in('week_key', weekKeys),
-    supabase.from('messages').select('*').eq('user_id', userId).in('week_key', weekKeys),
+  // FIX: explicit high limits — Supabase defaults to 1000 rows.
+  // High-volume users can have 10k+ messages across 12 weeks.
+  // Load connections in parallel; load messages in chunks of 5k via range pagination
+  // to safely cover users with up to 50k messages without one giant payload.
+  const fetchAllMessages = async () => {
+    const all = [];
+    const PAGE = 5000;
+    for (let from = 0; from < 50000; from += PAGE) {
+      const { data, error } = await supabase
+        .from('messages')
+        .select('*')
+        .eq('user_id', userId)
+        .in('week_key', weekKeys)
+        .range(from, from + PAGE - 1);
+      if (error) { console.error('messages page error:', error); break; }
+      if (!data || data.length === 0) break;
+      all.push(...data);
+      if (data.length < PAGE) break;
+    }
+    return all;
+  };
+
+  const [{ data: connRows }, msgRows] = await Promise.all([
+    supabase.from('connections').select('*').eq('user_id', userId).in('week_key', weekKeys).limit(10000),
+    fetchAllMessages(),
   ]);
+
+  // Group connections/messages once for O(n) lookup instead of O(n*m) filter
+  const connByWeek = {};
+  (connRows || []).forEach(c => {
+    (connByWeek[c.week_key] = connByWeek[c.week_key] || []).push(c);
+  });
+  const msgByWeek = {};
+  (msgRows || []).forEach(m => {
+    (msgByWeek[m.week_key] = msgByWeek[m.week_key] || []).push(m);
+  });
 
   return weekRows.map(w => ({
     key: w.week_key,
@@ -263,12 +298,15 @@ async function loadWeekDataFromDB(userId) {
     acceptanceRate: w.acceptance_rate,
     messagesSent: w.messages_sent,
     catchupsBooked: w.catchups_booked,
-    connections: (connRows || [])
-      .filter(c => c.week_key === w.week_key)
-      .map(c => ({ name: c.name, position: c.position, company: c.company, connectedOn: c.connected_on ? new Date(c.connected_on) : null })),
-    messages: (msgRows || [])
-      .filter(m => m.week_key === w.week_key)
-      .map(m => ({ to: m.recipient, content: m.content, date: m.sent_at ? new Date(m.sent_at) : null, from: '', subject: '' })),
+    connections: (connByWeek[w.week_key] || []).map(c => ({
+      name: c.name, position: c.position, company: c.company,
+      connectedOn: c.connected_on ? new Date(c.connected_on) : null
+    })),
+    messages: (msgByWeek[w.week_key] || []).map(m => ({
+      to: m.recipient, content: m.content,
+      date: m.sent_at ? new Date(m.sent_at) : null,
+      from: '', subject: ''
+    })),
   }));
 }
 
@@ -607,57 +645,83 @@ style={{
 function ActivityLog({ weekData, onCatchupsChange }) {
   const [activeTab, setActiveTab] = useState('connections');
   const [manualCatchups, setManualCatchups] = useState({});
+  const [showAll, setShowAll] = useState(false);
+  const RENDER_CAP = 200; // soft cap to avoid browser lag on heavy weeks
 
-  useEffect(() => { setManualCatchups({}); }, [weekData?.key]);
+  useEffect(() => { setManualCatchups({}); setShowAll(false); }, [weekData?.key]);
   useEffect(() => {
     if (onCatchupsChange) onCatchupsChange(Object.values(manualCatchups).filter(Boolean).length);
   }, [manualCatchups]);
 
+  const totalConnections = weekData?.connections?.length || 0;
+  const totalMessages    = weekData?.messages?.length    || 0;
+
+  const visibleConns = showAll ? (weekData?.connections || []) : (weekData?.connections || []).slice(0, RENDER_CAP);
+  const visibleMsgs  = showAll ? (weekData?.messages    || []) : (weekData?.messages    || []).slice(0, RENDER_CAP);
+
   const tabs = [
-    { id:'connections', label:'Connections', count: weekData?.connections?.length || 0 },
-    { id:'messages',    label:'Messages',    count: weekData?.messages?.length    || 0 },
+    { id:'connections', label:'Connections', count: totalConnections },
+    { id:'messages',    label:'Messages',    count: totalMessages },
   ];
+
+  const overflowFooter = (total, visible) => {
+    if (total <= visible) return null;
+    return (
+      <div style={{ padding:'10px 4px',textAlign:'center',borderTop:'1px solid rgba(255,255,255,0.06)' }}>
+        <span style={{ color:'rgba(255,255,255,0.4)',fontSize:11 }}>
+          Showing {visible} of {total.toLocaleString()} —{' '}
+        </span>
+        <button onClick={() => setShowAll(true)}
+          style={{ background:'none',border:'none',color:'#ec4899',fontSize:11,fontWeight:600,cursor:'pointer',textDecoration:'underline' }}>
+          show all
+        </button>
+      </div>
+    );
+  };
 
   return (
     <div className="glass-card p-5" style={{ minHeight:260 }}>
       <div className="flex items-center gap-2 mb-4">
         {tabs.map(t => (
-          <button key={t.id} onClick={() => setActiveTab(t.id)}
+          <button key={t.id} onClick={() => { setActiveTab(t.id); setShowAll(false); }}
             className={`tab-btn px-4 py-1.5 rounded-full text-sm ${activeTab===t.id?'active':''}`}>
-            {t.label} <span style={{ marginLeft:6, opacity:0.7, fontSize:11 }}>({t.count})</span>
+            {t.label} <span style={{ marginLeft:6, opacity:0.7, fontSize:11 }}>({t.count.toLocaleString()})</span>
           </button>
         ))}
       </div>
 
       {activeTab === 'connections' && (
-        <div style={{ maxHeight:220, overflowY:'auto' }}>
-          {!weekData?.connections?.length
+        <div style={{ maxHeight:280, overflowY:'auto' }}>
+          {totalConnections === 0
             ? <p style={{ color:'rgba(255,255,255,0.35)', fontSize:13 }}>No connections this week.</p>
-            : weekData.connections.map((c,i) => (
-              <div key={i} className="flex items-center gap-3 py-2" style={{ borderBottom:'1px solid rgba(255,255,255,0.06)' }}>
-                <div style={{ width:32,height:32,borderRadius:'50%',background:'rgba(236,72,153,0.18)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:14,color:'#ec4899',flexShrink:0 }}>
-                  {(c.name||'?')[0].toUpperCase()}
-                </div>
-                <div style={{ flex:1, minWidth:0 }}>
-                  <div style={{ color:'#fff',fontSize:13,fontWeight:600,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis' }}>{c.name}</div>
-                  <div style={{ color:'rgba(255,255,255,0.4)',fontSize:11 }}>{c.position}{c.company?` · ${c.company}`:''}</div>
-                </div>
-              </div>
-            ))
+            : <>
+                {visibleConns.map((c,i) => (
+                  <div key={i} className="flex items-center gap-3 py-2" style={{ borderBottom:'1px solid rgba(255,255,255,0.06)' }}>
+                    <div style={{ width:32,height:32,borderRadius:'50%',background:'rgba(236,72,153,0.18)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:14,color:'#ec4899',flexShrink:0 }}>
+                      {(c.name||'?')[0].toUpperCase()}
+                    </div>
+                    <div style={{ flex:1, minWidth:0 }}>
+                      <div style={{ color:'#fff',fontSize:13,fontWeight:600,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis' }}>{c.name}</div>
+                      <div style={{ color:'rgba(255,255,255,0.4)',fontSize:11 }}>{c.position}{c.company?` · ${c.company}`:''}</div>
+                    </div>
+                  </div>
+                ))}
+                {overflowFooter(totalConnections, visibleConns.length)}
+              </>
           }
         </div>
       )}
 
       {activeTab === 'messages' && (
-        <div style={{ maxHeight:220, overflowY:'auto' }}>
-          {!weekData?.messages?.length
+        <div style={{ maxHeight:280, overflowY:'auto' }}>
+          {totalMessages === 0
             ? <p style={{ color:'rgba(255,255,255,0.35)', fontSize:13 }}>No messages this week.</p>
             : <>
                 <div style={{ display:'grid', gridTemplateColumns:'1fr auto', gap:8, marginBottom:8, padding:'0 4px' }}>
                   <span style={{ color:'rgba(255,255,255,0.35)',fontSize:11,fontWeight:600,textTransform:'uppercase',letterSpacing:'0.04em' }}>Message</span>
                   <span style={{ color:'rgba(255,255,255,0.35)',fontSize:11,fontWeight:600,textTransform:'uppercase',letterSpacing:'0.04em' }}>Catch-up?</span>
                 </div>
-                {weekData.messages.map((m,i) => (
+                {visibleMsgs.map((m,i) => (
                   <div key={i} style={{ display:'grid',gridTemplateColumns:'1fr auto',gap:8,alignItems:'center',padding:'6px 4px',borderBottom:'1px solid rgba(255,255,255,0.06)' }}>
                     <div style={{ minWidth:0 }}>
                       <div style={{ color:'#fff',fontSize:12,fontWeight:600,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis' }}>{m.to||'Contact'}</div>
@@ -672,6 +736,7 @@ function ActivityLog({ weekData, onCatchupsChange }) {
                     </div>
                   </div>
                 ))}
+                {overflowFooter(totalMessages, visibleMsgs.length)}
               </>
           }
         </div>
