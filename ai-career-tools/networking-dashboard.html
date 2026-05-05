@@ -1,4 +1,4 @@
-<!-- v12: Sentry + Report Bug button + console error buffer 2026-05-04 -->
+<!-- v13: Reload data button + load diagnostics + chart hover values + paginated connections 2026-05-05 -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -284,6 +284,7 @@ function buildSampleData() {
 
 // ─── Supabase helpers ─────────────────────────────────────────────────────────
 async function loadWeekDataFromDB(userId) {
+  const t0 = Date.now();
   // FIX: order DESC + limit 12 to get the LATEST 12 weeks (not oldest).
   // Then reverse so chronological order is preserved for charts.
   const { data: weekRowsDesc, error: weekErr } = await supabase
@@ -293,26 +294,27 @@ async function loadWeekDataFromDB(userId) {
     .order('week_key', { ascending: false })
     .limit(12);
 
-  if (weekErr || !weekRowsDesc || weekRowsDesc.length === 0) return null;
+  if (weekErr) { console.error('[load] networking_weeks query error:', weekErr); return null; }
+  if (!weekRowsDesc || weekRowsDesc.length === 0) {
+    console.warn('[load] no weeks found for user', userId);
+    return null;
+  }
 
   const weekRows = [...weekRowsDesc].reverse(); // ascending again for display
   const weekKeys = weekRows.map(r => r.week_key);
 
-  // FIX: explicit high limits — Supabase defaults to 1000 rows.
-  // High-volume users can have 10k+ messages across 12 weeks.
-  // Load connections in parallel; load messages in chunks of 5k via range pagination
-  // to safely cover users with up to 50k messages without one giant payload.
   const fetchAllMessages = async () => {
     const all = [];
     const PAGE = 5000;
-    for (let from = 0; from < 50000; from += PAGE) {
+    for (let from = 0; from < 100000; from += PAGE) {
       const { data, error } = await supabase
         .from('messages')
         .select('*')
         .eq('user_id', userId)
         .in('week_key', weekKeys)
+        .order('sent_at', { ascending: true, nullsFirst: false })
         .range(from, from + PAGE - 1);
-      if (error) { console.error('messages page error:', error); break; }
+      if (error) { console.error('[load] messages page error:', error); break; }
       if (!data || data.length === 0) break;
       all.push(...data);
       if (data.length < PAGE) break;
@@ -320,38 +322,72 @@ async function loadWeekDataFromDB(userId) {
     return all;
   };
 
-  const [{ data: connRows }, msgRows] = await Promise.all([
-    supabase.from('connections').select('*').eq('user_id', userId).in('week_key', weekKeys).limit(10000),
-    fetchAllMessages(),
-  ]);
+  const fetchAllConnections = async () => {
+    const all = [];
+    const PAGE = 5000;
+    for (let from = 0; from < 50000; from += PAGE) {
+      const { data, error } = await supabase
+        .from('connections')
+        .select('*')
+        .eq('user_id', userId)
+        .in('week_key', weekKeys)
+        .order('connected_on', { ascending: true, nullsFirst: false })
+        .range(from, from + PAGE - 1);
+      if (error) { console.error('[load] connections page error:', error); break; }
+      if (!data || data.length === 0) break;
+      all.push(...data);
+      if (data.length < PAGE) break;
+    }
+    return all;
+  };
 
-  // Group connections/messages once for O(n) lookup instead of O(n*m) filter
+  const [connRows, msgRows] = await Promise.all([fetchAllConnections(), fetchAllMessages()]);
+
+  // Group connections/messages once for O(n) lookup instead of O(n*m) filter.
+  // Cast week_key to string defensively in case Supabase returns Date-like values.
   const connByWeek = {};
   (connRows || []).forEach(c => {
-    (connByWeek[c.week_key] = connByWeek[c.week_key] || []).push(c);
+    const k = typeof c.week_key === 'string' ? c.week_key : String(c.week_key).slice(0, 10);
+    (connByWeek[k] = connByWeek[k] || []).push(c);
   });
   const msgByWeek = {};
   (msgRows || []).forEach(m => {
-    (msgByWeek[m.week_key] = msgByWeek[m.week_key] || []).push(m);
+    const k = typeof m.week_key === 'string' ? m.week_key : String(m.week_key).slice(0, 10);
+    (msgByWeek[k] = msgByWeek[k] || []).push(m);
   });
 
-  return weekRows.map(w => ({
-    key: w.week_key,
-    label: w.week_label || new Date(w.week_key).toLocaleDateString('en-AU', { day:'numeric', month:'short' }),
-    requestsSent: w.requests_sent,
-    acceptanceRate: w.acceptance_rate,
-    messagesSent: w.messages_sent,
-    catchupsBooked: w.catchups_booked,
-    connections: (connByWeek[w.week_key] || []).map(c => ({
-      name: c.name, position: c.position, company: c.company,
-      connectedOn: c.connected_on ? new Date(c.connected_on) : null
-    })),
-    messages: (msgByWeek[w.week_key] || []).map(m => ({
-      to: m.recipient, content: m.content,
-      date: m.sent_at ? new Date(m.sent_at) : null,
-      from: '', subject: ''
-    })),
-  }));
+  const result = weekRows.map(w => {
+    const wk = typeof w.week_key === 'string' ? w.week_key : String(w.week_key).slice(0, 10);
+    return {
+      key: wk,
+      label: w.week_label || new Date(wk).toLocaleDateString('en-AU', { day:'numeric', month:'short' }),
+      requestsSent: w.requests_sent,
+      acceptanceRate: w.acceptance_rate,
+      messagesSent: w.messages_sent,
+      catchupsBooked: w.catchups_booked,
+      connections: (connByWeek[wk] || []).map(c => ({
+        name: c.name, position: c.position, company: c.company,
+        connectedOn: c.connected_on ? new Date(c.connected_on) : null
+      })),
+      messages: (msgByWeek[wk] || []).map(m => ({
+        to: m.recipient, content: m.content,
+        date: m.sent_at ? new Date(m.sent_at) : null,
+        from: '', subject: ''
+      })),
+    };
+  });
+
+  // Diagnostic: surface load shape so bugs like "no connections/messages" are visible.
+  console.log(`[load] weeks=${result.length} conns=${(connRows||[]).length} msgs=${(msgRows||[]).length} ms=${Date.now()-t0}`);
+  // Stash on window for the in-page diagnostic banner
+  window.__lastLoad = {
+    at: new Date().toISOString(),
+    weeks: result.length,
+    connections: (connRows||[]).length,
+    messages: (msgRows||[]).length,
+    perWeek: result.map(w => ({ k: w.key, c: w.connections.length, m: w.messages.length })),
+  };
+  return result;
 }
 
 async function saveWeekDataToDB(userId, weekData) {
@@ -577,12 +613,17 @@ function MainChart({ weekData }) {
     const labels = weekData.map(w => w.label);
     const COLORS = ['#a855f7','#ec4899','#f472b6','#c084fc'];
     const series = [
-      { name:'Requests Sent', y: weekData.map(w=>w.requestsSent),   c: COLORS[0] },
-      { name:'Acceptance %',  y: weekData.map(w=>w.acceptanceRate), c: COLORS[1] },
-      { name:'Messages Sent', y: weekData.map(w=>w.messagesSent),   c: COLORS[2] },
-      { name:'Catch-ups',     y: weekData.map(w=>w.catchupsBooked), c: COLORS[3] },
+      { name:'Requests Sent', y: weekData.map(w=>w.requestsSent),   c: COLORS[0], suffix: '' },
+      { name:'Acceptance %',  y: weekData.map(w=>w.acceptanceRate), c: COLORS[1], suffix: '%' },
+      { name:'Messages Sent', y: weekData.map(w=>w.messagesSent),   c: COLORS[2], suffix: '' },
+      { name:'Catch-ups',     y: weekData.map(w=>w.catchupsBooked), c: COLORS[3], suffix: '' },
     ];
-    const traces = series.map(t => ({ name:t.name, x:labels, y:t.y, type:'scatter', mode:'lines+markers', line:{width:2.5,shape:'spline',color:t.c}, marker:{size:6,color:t.c} }));
+    const traces = series.map(t => ({
+      name: t.name, x: labels, y: t.y, type: 'scatter', mode: 'lines+markers',
+      line: { width: 2.5, shape: 'spline', color: t.c },
+      marker: { size: 6, color: t.c },
+      hovertemplate: `<b>${t.name}</b>: %{y}${t.suffix}<extra></extra>`,
+    }));
     const blines = Object.entries(BENCHMARKS).map(([,v],i) => ({ x:[labels[0],labels[labels.length-1]], y:[v,v], mode:'lines', line:{dash:'dot',width:1,color:COLORS[i]}, showlegend:false, hoverinfo:'skip' }));
     window.Plotly.newPlot(el, [...traces,...blines], {
       paper_bgcolor:'rgba(0,0,0,0)', plot_bgcolor:'rgba(0,0,0,0)',
@@ -592,6 +633,7 @@ function MainChart({ weekData }) {
       xaxis:{ gridcolor:'rgba(255,255,255,0.06)', tickfont:{color:'rgba(255,255,255,0.5)',size:10}, zeroline:false },
       yaxis:{ gridcolor:'rgba(255,255,255,0.06)', tickfont:{color:'rgba(255,255,255,0.5)',size:10}, zeroline:false },
       hovermode:'x unified',
+      hoverlabel:{ bgcolor:'rgba(30,10,48,0.95)', bordercolor:'rgba(236,72,153,0.5)', font:{ color:'#fff', family:'Inter, sans-serif', size:12 } },
     }, { displayModeBar:false, responsive:true });
     return () => { try { window.Plotly.purge(el); } catch(e) {} };
   }, [weekData]);
@@ -611,7 +653,8 @@ function MetricDrilldown({ metricKey, title, suffix, weekData, benchmark }) {
       { x:labels, y:values, type:'scatter', mode:'lines+markers',
         line:{width:3, shape:'spline', color:q.color},
         marker:{size:7, color:q.color},
-        fill:'tozeroy', name:title },
+        fill:'tozeroy', name:title,
+        hovertemplate: `<b>%{x}</b><br>${title}: %{y}${suffix||''}<extra></extra>` },
       { x:[labels[0],labels[labels.length-1]], y:[benchmark,benchmark],
         mode:'lines', line:{dash:'dot',width:1.5,color:'rgba(255,255,255,0.3)'},
         showlegend:false, hoverinfo:'skip', name:'Benchmark' },
@@ -623,6 +666,7 @@ function MetricDrilldown({ metricKey, title, suffix, weekData, benchmark }) {
       yaxis:{ gridcolor:'rgba(255,255,255,0.06)', tickfont:{color:'rgba(255,255,255,0.5)',size:10}, zeroline:false,
         ticksuffix: suffix || '' },
       hovermode:'x unified', showlegend:false,
+      hoverlabel:{ bgcolor:'rgba(30,10,48,0.95)', bordercolor:'rgba(168,85,247,0.5)', font:{ color:'#fff', family:'Inter, sans-serif', size:12 } },
     }, { displayModeBar:false, responsive:true });
     return () => { try { window.Plotly.purge(el); } catch(e) {} };
   }, [metricKey, weekData]);
@@ -1476,7 +1520,7 @@ function LoadingScreen({ message }) {
 }
 
 // ─── Dashboard ────────────────────────────────────────────────────────────────
-function Dashboard({ weekData: rawWeekData, onReset, user, onSignOut, goals, onGoalsSaved, platformBenchmarks, initialPendingFlags }) {
+function Dashboard({ weekData: rawWeekData, onReset, onReload, user, onSignOut, goals, onGoalsSaved, platformBenchmarks, initialPendingFlags }) {
   const [selectedIdx, setSelectedIdx] = useState(rawWeekData.length - 1);
   const [showRolling, setShowRolling] = useState(false);
   const [activeMetric, setActiveMetric] = useState(null);
@@ -1590,6 +1634,12 @@ function Dashboard({ weekData: rawWeekData, onReset, user, onSignOut, goals, onG
                 🤖 {pendingFlags.length} catch-up{pendingFlags.length!==1?'s':''} to review
               </button>
             )}
+{onReload && (
+  <button onClick={onReload} title="Re-fetch your data from the database"
+    style={{ background:'rgba(168,85,247,0.12)',border:'1px solid rgba(168,85,247,0.3)',color:'#a855f7',borderRadius:8,padding:'6px 12px',fontSize:12,fontWeight:600,cursor:'pointer',display:'flex',alignItems:'center',gap:6 }}>
+    🔄 Reload data
+  </button>
+)}
 <button onClick={onReset}
   onMouseEnter={e => { e.currentTarget.style.background='linear-gradient(135deg,#ec4899,#a855f7)'; e.currentTarget.style.color='#fff'; e.currentTarget.style.borderColor='transparent'; }}
   onMouseLeave={e => { e.currentTarget.style.background='rgba(236,72,153,0.12)'; e.currentTarget.style.color='#ec4899'; e.currentTarget.style.borderColor='rgba(236,72,153,0.3)'; }}
@@ -1790,13 +1840,33 @@ function App() {
   const handleSignOut = async () => { await supabase.auth.signOut(); };
   const handleSkipLogin = () => setScreen('upload');
 
+  // Force-refetch from DB (button in dashboard header)
+  const handleReload = async () => {
+    if (!user) return;
+    setLoadMsg('Reloading your data…');
+    setScreen('loading');
+    try {
+      const data = await loadWeekDataFromDB(user.id);
+      if (data && data.length > 0) {
+        setWeekData(data);
+        setScreen('dashboard');
+      } else {
+        setScreen('upload');
+      }
+    } catch (e) {
+      console.error('reload error:', e);
+      setScreen('dashboard'); // fall back to whatever was on screen
+    }
+  };
+
   const renderScreen = () => {
     if (screen === 'loading')   return <LoadingScreen message={loadMsg} />;
     if (screen === 'login')     return <LoginScreen onSkip={handleSkipLogin} />;
     if (screen === 'goals')     return <GoalScreen onSave={handleGoalsSave} userEmail={user?.email} />;
     if (screen === 'upload')    return <UploadScreen onData={handleData} onSample={handleSample} user={user} />;
     if (screen === 'dashboard' && weekData) {
-      return <Dashboard weekData={weekData} onReset={handleReset} user={user} onSignOut={handleSignOut}
+      return <Dashboard weekData={weekData} onReset={handleReset} onReload={user ? handleReload : null}
+        user={user} onSignOut={handleSignOut}
         goals={goals} onGoalsSaved={g => setGoals(g)}
         platformBenchmarks={platformBenchmarks}
         initialPendingFlags={pendingFlags} />;
