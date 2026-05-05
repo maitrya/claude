@@ -1,4 +1,4 @@
-<!-- v13: Reload data button + load diagnostics + chart hover values + paginated connections 2026-05-05 -->
+<!-- v14: Reload stays on dashboard (toast feedback instead of redirect) 2026-05-05 -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -1840,23 +1840,26 @@ function App() {
   const handleSignOut = async () => { await supabase.auth.signOut(); };
   const handleSkipLogin = () => setScreen('upload');
 
-  // Force-refetch from DB (button in dashboard header)
+  // Force-refetch from DB (button in dashboard header).
+  // Stays on the dashboard regardless — never auto-kicks to upload.
+  const [reloadStatus, setReloadStatus] = useState(''); // shown briefly in toast
   const handleReload = async () => {
     if (!user) return;
-    setLoadMsg('Reloading your data…');
-    setScreen('loading');
+    setReloadStatus('Reloading…');
     try {
       const data = await loadWeekDataFromDB(user.id);
       if (data && data.length > 0) {
         setWeekData(data);
-        setScreen('dashboard');
+        setReloadStatus(`Loaded ${data.length} weeks · ${data.reduce((s,w) => s + (w.connections?.length||0), 0)} connections · ${data.reduce((s,w) => s + (w.messages?.length||0), 0)} messages`);
       } else {
-        setScreen('upload');
+        setReloadStatus('No saved data found. Upload CSVs to populate your dashboard.');
       }
     } catch (e) {
       console.error('reload error:', e);
-      setScreen('dashboard'); // fall back to whatever was on screen
+      setReloadStatus('Reload failed: ' + (e.message || 'unknown error'));
     }
+    // Auto-clear toast after 4s
+    setTimeout(() => setReloadStatus(''), 4000);
   };
 
   const renderScreen = () => {
@@ -1877,6 +1880,16 @@ function App() {
   return (
     <>
       {renderScreen()}
+      {/* Reload toast — appears briefly after clicking 🔄 Reload */}
+      {reloadStatus && (
+        <div style={{ position:'fixed', top:20, left:'50%', transform:'translateX(-50%)', zIndex:200,
+          background:'rgba(45,16,87,0.95)', backdropFilter:'blur(12px)',
+          border:'1px solid rgba(168,85,247,0.5)', borderRadius:10,
+          padding:'10px 18px', color:'#f9a8d4', fontSize:13, fontWeight:600,
+          boxShadow:'0 8px 24px rgba(0,0,0,0.4)', animation:'fadeIn 0.2s ease' }}>
+          {reloadStatus}
+        </div>
+      )}
       {/* Bug report button — visible on every screen except the initial loading splash */}
       {screen !== 'loading' && <BugReportButton user={user} />}
     </>
