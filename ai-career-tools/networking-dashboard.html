@@ -1,4 +1,4 @@
-<!-- v14: Reload stays on dashboard (toast feedback instead of redirect) 2026-05-05 -->
+<!-- v15: Lazy-load connections/messages per week (scales to any user) 2026-05-05 -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -253,6 +253,7 @@ function aggregateByWeek(data) {
     w.label = d.toLocaleDateString('en-AU', { day:'numeric', month:'short' });
     w.acceptanceRate = w.requestsSent > 0 ? Math.min(100, Math.round((w.connections.length / w.requestsSent) * 100)) : 0;
     w.catchupsBooked = 0;
+    w._detailLoaded = true; // freshly parsed CSV data has connections/messages embedded
   });
 
   return sorted.slice(-12);
@@ -278,15 +279,19 @@ function buildSampleData() {
       messagesSent, catchupsBooked: Math.floor(Math.random()*3),
       connections: Array.from({ length: accepted }, (_,j) => ({ name:NAMES[j%8], position:ROLES[j%8], company:COS[j%8], connectedOn:d })),
       messages: Array.from({ length: messagesSent }, (_,j) => ({ from:'Me', to:NAMES[j%8], date:d, subject:'Following up', content:MSGS[j%4] })),
+      _detailLoaded: true, // sample data already has connections/messages embedded
     };
   });
 }
 
 // ─── Supabase helpers ─────────────────────────────────────────────────────────
+// Initial load: only fetch the metric rows from networking_weeks (cheap).
+// Per-week connections + messages are lazy-loaded on demand by loadWeekDetail
+// when the user selects that week. This scales to any user, regardless of
+// how many messages they have, because we never hold all 12 weeks of detail
+// in memory at once.
 async function loadWeekDataFromDB(userId) {
   const t0 = Date.now();
-  // FIX: order DESC + limit 12 to get the LATEST 12 weeks (not oldest).
-  // Then reverse so chronological order is preserved for charts.
   const { data: weekRowsDesc, error: weekErr } = await supabase
     .from('networking_weeks')
     .select('*')
@@ -300,62 +305,7 @@ async function loadWeekDataFromDB(userId) {
     return null;
   }
 
-  const weekRows = [...weekRowsDesc].reverse(); // ascending again for display
-  const weekKeys = weekRows.map(r => r.week_key);
-
-  const fetchAllMessages = async () => {
-    const all = [];
-    const PAGE = 5000;
-    for (let from = 0; from < 100000; from += PAGE) {
-      const { data, error } = await supabase
-        .from('messages')
-        .select('*')
-        .eq('user_id', userId)
-        .in('week_key', weekKeys)
-        .order('sent_at', { ascending: true, nullsFirst: false })
-        .range(from, from + PAGE - 1);
-      if (error) { console.error('[load] messages page error:', error); break; }
-      if (!data || data.length === 0) break;
-      all.push(...data);
-      if (data.length < PAGE) break;
-    }
-    return all;
-  };
-
-  const fetchAllConnections = async () => {
-    const all = [];
-    const PAGE = 5000;
-    for (let from = 0; from < 50000; from += PAGE) {
-      const { data, error } = await supabase
-        .from('connections')
-        .select('*')
-        .eq('user_id', userId)
-        .in('week_key', weekKeys)
-        .order('connected_on', { ascending: true, nullsFirst: false })
-        .range(from, from + PAGE - 1);
-      if (error) { console.error('[load] connections page error:', error); break; }
-      if (!data || data.length === 0) break;
-      all.push(...data);
-      if (data.length < PAGE) break;
-    }
-    return all;
-  };
-
-  const [connRows, msgRows] = await Promise.all([fetchAllConnections(), fetchAllMessages()]);
-
-  // Group connections/messages once for O(n) lookup instead of O(n*m) filter.
-  // Cast week_key to string defensively in case Supabase returns Date-like values.
-  const connByWeek = {};
-  (connRows || []).forEach(c => {
-    const k = typeof c.week_key === 'string' ? c.week_key : String(c.week_key).slice(0, 10);
-    (connByWeek[k] = connByWeek[k] || []).push(c);
-  });
-  const msgByWeek = {};
-  (msgRows || []).forEach(m => {
-    const k = typeof m.week_key === 'string' ? m.week_key : String(m.week_key).slice(0, 10);
-    (msgByWeek[k] = msgByWeek[k] || []).push(m);
-  });
-
+  const weekRows = [...weekRowsDesc].reverse();
   const result = weekRows.map(w => {
     const wk = typeof w.week_key === 'string' ? w.week_key : String(w.week_key).slice(0, 10);
     return {
@@ -365,29 +315,62 @@ async function loadWeekDataFromDB(userId) {
       acceptanceRate: w.acceptance_rate,
       messagesSent: w.messages_sent,
       catchupsBooked: w.catchups_booked,
-      connections: (connByWeek[wk] || []).map(c => ({
-        name: c.name, position: c.position, company: c.company,
-        connectedOn: c.connected_on ? new Date(c.connected_on) : null
-      })),
-      messages: (msgByWeek[wk] || []).map(m => ({
-        to: m.recipient, content: m.content,
-        date: m.sent_at ? new Date(m.sent_at) : null,
-        from: '', subject: ''
-      })),
+      connections: [],   // lazy-loaded by loadWeekDetail
+      messages: [],      // lazy-loaded by loadWeekDetail
+      _detailLoaded: false,
     };
   });
 
-  // Diagnostic: surface load shape so bugs like "no connections/messages" are visible.
-  console.log(`[load] weeks=${result.length} conns=${(connRows||[]).length} msgs=${(msgRows||[]).length} ms=${Date.now()-t0}`);
-  // Stash on window for the in-page diagnostic banner
+  console.log(`[load] weeks=${result.length} (lazy mode) ms=${Date.now()-t0}`);
   window.__lastLoad = {
     at: new Date().toISOString(),
     weeks: result.length,
-    connections: (connRows||[]).length,
-    messages: (msgRows||[]).length,
-    perWeek: result.map(w => ({ k: w.key, c: w.connections.length, m: w.messages.length })),
+    perWeek: result.map(w => ({ k: w.key, requests: w.requestsSent, msgs: w.messagesSent })),
   };
   return result;
+}
+
+// Lazy-load: fetch connections + messages for ONE specific week.
+// Pagination cap is high enough (500k) that any realistic user fits.
+async function loadWeekDetail(userId, weekKey) {
+  const t0 = Date.now();
+  const fetchPaginated = async (table, orderCol) => {
+    const all = [];
+    const PAGE = 5000;
+    for (let from = 0; from < 500000; from += PAGE) {
+      const { data, error } = await supabase
+        .from(table)
+        .select('*')
+        .eq('user_id', userId)
+        .eq('week_key', weekKey)
+        .order(orderCol, { ascending: true, nullsFirst: false })
+        .range(from, from + PAGE - 1);
+      if (error) { console.error(`[detail] ${table} page error:`, error); break; }
+      if (!data || data.length === 0) break;
+      all.push(...data);
+      if (data.length < PAGE) break;
+    }
+    return all;
+  };
+
+  const [conns, msgs] = await Promise.all([
+    fetchPaginated('connections', 'connected_on'),
+    fetchPaginated('messages',    'sent_at'),
+  ]);
+
+  console.log(`[detail] ${weekKey}: conns=${conns.length} msgs=${msgs.length} ms=${Date.now()-t0}`);
+
+  return {
+    connections: conns.map(c => ({
+      name: c.name, position: c.position, company: c.company,
+      connectedOn: c.connected_on ? new Date(c.connected_on) : null,
+    })),
+    messages: msgs.map(m => ({
+      to: m.recipient, content: m.content,
+      date: m.sent_at ? new Date(m.sent_at) : null,
+      from: '', subject: '',
+    })),
+  };
 }
 
 async function saveWeekDataToDB(userId, weekData) {
@@ -730,7 +713,7 @@ style={{
 }
 
 // ─── Activity Log ─────────────────────────────────────────────────────────────
-function ActivityLog({ weekData, onCatchupsChange }) {
+function ActivityLog({ weekData, onCatchupsChange, loading }) {
   const [activeTab, setActiveTab] = useState('connections');
   const [manualCatchups, setManualCatchups] = useState({});
   const [showAll, setShowAll] = useState(false);
@@ -780,7 +763,12 @@ function ActivityLog({ weekData, onCatchupsChange }) {
 
       {activeTab === 'connections' && (
         <div style={{ maxHeight:280, overflowY:'auto' }}>
-          {totalConnections === 0
+          {loading && totalConnections === 0
+            ? <div style={{ display:'flex',alignItems:'center',gap:10,padding:'14px 4px' }}>
+                <span className="spinner" style={{ width:16,height:16 }} />
+                <span style={{ color:'rgba(255,255,255,0.4)',fontSize:13 }}>Loading connections…</span>
+              </div>
+            : totalConnections === 0
             ? <p style={{ color:'rgba(255,255,255,0.35)', fontSize:13 }}>No connections this week.</p>
             : <>
                 {visibleConns.map((c,i) => (
@@ -802,7 +790,12 @@ function ActivityLog({ weekData, onCatchupsChange }) {
 
       {activeTab === 'messages' && (
         <div style={{ maxHeight:280, overflowY:'auto' }}>
-          {totalMessages === 0
+          {loading && totalMessages === 0
+            ? <div style={{ display:'flex',alignItems:'center',gap:10,padding:'14px 4px' }}>
+                <span className="spinner" style={{ width:16,height:16 }} />
+                <span style={{ color:'rgba(255,255,255,0.4)',fontSize:13 }}>Loading messages…</span>
+              </div>
+            : totalMessages === 0
             ? <p style={{ color:'rgba(255,255,255,0.35)', fontSize:13 }}>No messages this week.</p>
             : <>
                 <div style={{ display:'grid', gridTemplateColumns:'1fr auto', gap:8, marginBottom:8, padding:'0 4px' }}>
@@ -1529,7 +1522,14 @@ function Dashboard({ weekData: rawWeekData, onReset, onReload, user, onSignOut, 
   const [goalSaving, setGoalSaving] = useState(false);
   const [pendingFlags, setPendingFlags] = useState(initialPendingFlags || []);
   const [showCatchupReview, setShowCatchupReview] = useState((initialPendingFlags || []).length > 0);
+  // Lazy-load cache: weekKey -> { connections, messages }. Cleared when rawWeekData changes (reload/upload).
+  const [weekDetailCache, setWeekDetailCache] = useState({});
+  const [detailLoading, setDetailLoading] = useState(false);
   const debounceRef = useRef({});
+  const detailFetchRef = useRef({}); // weekKey -> AbortController-like flag
+
+  // Reset lazy-load cache when the underlying weekData reference changes (e.g. after reload).
+  useEffect(() => { setWeekDetailCache({}); }, [rawWeekData]);
 
   const rollingData = useMemo(() => rawWeekData.map((w,i) => {
     const slice = rawWeekData.slice(Math.max(0,i-3), i+1);
@@ -1539,7 +1539,44 @@ function Dashboard({ weekData: rawWeekData, onReset, onReload, user, onSignOut, 
 
   const displayData  = showRolling ? rollingData : rawWeekData;
   const selectedWeek = displayData[selectedIdx]  || displayData[displayData.length-1];
-  const rawSelected  = rawWeekData[selectedIdx]  || rawWeekData[rawWeekData.length-1];
+  const rawSelectedBase = rawWeekData[selectedIdx]  || rawWeekData[rawWeekData.length-1];
+
+  // Enrich the selected week with lazily-loaded details if available.
+  const rawSelected = useMemo(() => {
+    if (!rawSelectedBase) return rawSelectedBase;
+    const detail = weekDetailCache[rawSelectedBase.key];
+    if (detail) {
+      return { ...rawSelectedBase, connections: detail.connections, messages: detail.messages };
+    }
+    return rawSelectedBase;
+  }, [rawSelectedBase, weekDetailCache]);
+
+  // Lazy-fetch detail for the selected week if not already loaded/cached.
+  useEffect(() => {
+    if (!user || !rawSelectedBase?.key) return;
+    if (rawSelectedBase._detailLoaded) return;     // sample data or freshly parsed CSV
+    if (weekDetailCache[rawSelectedBase.key]) return; // already cached
+    if (detailFetchRef.current[rawSelectedBase.key]) return; // in-flight
+
+    detailFetchRef.current[rawSelectedBase.key] = true;
+    setDetailLoading(true);
+    let cancelled = false;
+    loadWeekDetail(user.id, rawSelectedBase.key)
+      .then(detail => {
+        if (cancelled) return;
+        setWeekDetailCache(prev => ({ ...prev, [rawSelectedBase.key]: detail }));
+      })
+      .catch(e => console.error('weekDetail fetch failed:', e))
+      .finally(() => {
+        if (!cancelled) {
+          delete detailFetchRef.current[rawSelectedBase.key];
+          setDetailLoading(false);
+        }
+      });
+
+    return () => { cancelled = true; };
+  }, [rawSelectedBase?.key, user?.id]);
+
   const catchupCount = catchupOverrides[rawSelected?.key] !== undefined ? catchupOverrides[rawSelected.key] : (selectedWeek?.catchupsBooked||0);
 
   const handleCatchupsChange = useCallback((count) => {
@@ -1707,7 +1744,7 @@ function Dashboard({ weekData: rawWeekData, onReset, onReload, user, onSignOut, 
             Activity — Week of {selectedWeek?.label}
             {showRolling && <span style={{ color:'rgba(255,255,255,0.35)',fontSize:12,fontWeight:400,marginLeft:8 }}>(raw data)</span>}
           </h2>
-          <ActivityLog weekData={rawSelected} onCatchupsChange={handleCatchupsChange} />
+          <ActivityLog weekData={rawSelected} onCatchupsChange={handleCatchupsChange} loading={detailLoading} />
         </div>
 
         {/* Quartile legend */}
