@@ -66,14 +66,61 @@ const RUBRIC = `
 - Use whole numbers for scores
 `;
 
-// ─── Model answer (PLACEHOLDER — replace with operator-provided answer) ─────
+// ─── Model answer (Happy Hour Co reference build) ──────────────────────────
+// Update this when the case study changes. Source: nba-happy-hour-v2.xlsx
 const MODEL_ANSWER = `
-[PLACEHOLDER — operator must replace this with the case-study-specific model answer.]
+## Case study: Happy Hour Co (NBA-listed hospitality)
+- Transaction date: 31 March 2020
+- Last historical FYE: 30 March 2019
+- Forecast horizon: 10 years (FY20 stub → FY30), AUD millions
 
-The grader should:
-- Assess STRUCTURAL correctness when no numerical answer is available
-- Flag obvious errors (formula bugs, missing tax line, hardcoded revenue)
-- Award partial marks generously when the approach is right but exact numbers can't be checked
+## Expected P&L outputs (±5% acceptable, driven from Assumptions tab)
+| Year | Revenue | EBITDA | EBITDA margin | D&A | EBIT |
+| FY20 | 1,149 | 94.1 | 8.2% | (36.1) | 58.0 |
+| FY21 | 1,256 | 92.6 | 7.4% | (40.5) | 52.2 |
+| FY25 | 1,471 | 130.5 | 8.9% | (53.6) | 76.9 |
+| FY30 | 1,577 | 142.0 | 9.0% | (47.5) | 94.5 |
+
+Drivers expected on Assumptions tab:
+- Revenue growth: 9.3% → 7.8% → 6.9% → -0.3% → 2.0% declining to 1.0% terminal
+- EBITDA margin ramps 7.4% → 9.0% over forecast period
+- Capex: $50m flat from FY21
+- Tax rate: 17% (forecast); 19% in FY20 actual
+
+## Expected WACC
+- WACC used in DCF: 8.5% (acceptable range ±50bps)
+- Perpetuity growth rate: 0.5%
+- Exit EBITDA multiple: 8.5×
+- Tax rate: 17%
+- (Specific CAPM components — rf, β, ERP, Kd — are case-study specific; operator to confirm.)
+
+## Expected Valuation outputs (±10% acceptable per methodology)
+| Component | Perpetuity Growth | Exit EBITDA Multiple |
+| Sum of PV(FCF) | $409m | $409m |
+| PV(Terminal Value) | $394m | $579m |
+| Enterprise Value | $803m | $988m |
+| Net debt | ($85m) | ($85m) |
+| Equity Value | $718m | $904m |
+| Implied share price (199m shares) | 361¢ | 454¢ |
+
+Either methodology is valid. Candidates score full marks if numbers fall within ±10%.
+
+## Common pitfalls to flag (cell-specific commentary required)
+- Hardcoded revenue in P&L tab (must drive from Assumptions)
+- Cost of debt not tax-effected in WACC build
+- Book value used for capital structure weights instead of market value
+- Tax rate inconsistency between WACC and FCF (e.g. 17% vs 19%)
+- Terminal value not discounted back to present
+- Capex not deducted from FCF
+- ΔWC sign convention errors
+- Net debt added rather than deducted in equity bridge
+- Hardcoded EBITDA margin
+
+## Grading approach
+- Reference SPECIFIC cells (e.g. "P&L!D14") when flagging issues
+- Award partial marks generously when structural approach is correct
+- Goal is teaching candidates, not penalising minor variations
+- Currency choice (AUD/USD) doesn't matter; internal consistency does
 `;
 
 // ─── Output schema given to Claude ──────────────────────────────────────────
