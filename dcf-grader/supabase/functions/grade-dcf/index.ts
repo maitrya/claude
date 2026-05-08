@@ -1,19 +1,22 @@
 // DCF Model Reviewer — Edge Function
 // Receives an .xlsx file, extracts cell values + formulas + font colours
 // from the three required tabs (P&L, Valuation Calculation, Assumptions),
-// then calls Claude to grade against the embedded rubric + model answer.
+// then calls Gemini to grade against the embedded rubric + model answer.
 //
 // Required env vars:
-//   ANTHROPIC_API_KEY — Anthropic API key (sk-ant-...)
+//   GEMINI_API_KEY — Google AI Studio API key (free tier: 15 RPM, 1500/day)
+//                    Get one at https://aistudio.google.com/apikey
 //
 // Deploy: supabase functions deploy grade-dcf
 
 import { createClient } from 'jsr:@supabase/supabase-js@2';
 import ExcelJS from 'npm:exceljs@4.4.0';
 
-const ANTHROPIC_API_KEY = Deno.env.get('ANTHROPIC_API_KEY') || '';
-const ANTHROPIC_MODEL   = 'claude-haiku-4-5-20251001';
-const MAX_FILE_BYTES    = 12 * 1024 * 1024; // 12MB hard cap (UI sets 10MB)
+const GEMINI_API_KEY = Deno.env.get('GEMINI_API_KEY') || '';
+// gemini-2.0-flash is free, fast, supports structured JSON output via responseSchema.
+// Upgrade to gemini-2.5-flash or gemini-1.5-pro for better quality if needed (still free tier).
+const GEMINI_MODEL  = 'gemini-2.0-flash';
+const MAX_FILE_BYTES = 12 * 1024 * 1024; // 12MB hard cap (UI sets 10MB)
 
 const REQUIRED_TABS = ['P&L', 'Valuation Calculation', 'Assumptions'];
 
@@ -123,19 +126,33 @@ Either methodology is valid. Candidates score full marks if numbers fall within 
 - Currency choice (AUD/USD) doesn't matter; internal consistency does
 `;
 
-// ─── Output schema given to Claude ──────────────────────────────────────────
-const OUTPUT_SCHEMA = `
-{
-  "totalScore": <integer 0-100>,
-  "components": [
-    { "name": "P&L Build", "score": <int 0-40>, "outOf": 40, "commentary": "<specific written feedback>" },
-    { "name": "WACC", "score": <int 0-20>, "outOf": 20, "commentary": "<specific written feedback>" },
-    { "name": "Valuation Calculation", "score": <int 0-20>, "outOf": 20, "commentary": "<specific written feedback>" },
-    { "name": "Formatting & Model Layout", "score": <int 0-20>, "outOf": 20, "commentary": "<specific written feedback>" }
-  ],
-  "formattingViolations": [ "<specific cell-level violation 1>", "..." ]
-}
-`;
+// ─── Output schema enforced by Gemini's responseSchema ──────────────────────
+// JSON Schema (subset Gemini supports). Guarantees the response shape.
+const RESPONSE_SCHEMA = {
+  type: 'object',
+  properties: {
+    totalScore: { type: 'integer', description: 'Sum of all component scores, 0-100.' },
+    components: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          name: { type: 'string', enum: ['P&L Build', 'WACC', 'Valuation Calculation', 'Formatting & Model Layout'] },
+          score: { type: 'integer' },
+          outOf: { type: 'integer' },
+          commentary: { type: 'string', description: 'Specific written feedback referencing exact cells where applicable.' },
+        },
+        required: ['name', 'score', 'outOf', 'commentary'],
+      },
+    },
+    formattingViolations: {
+      type: 'array',
+      items: { type: 'string' },
+      description: 'Cell-level formatting violations, e.g. "Cell P&L!D14 contains a hardcoded value formatted in black."',
+    },
+  },
+  required: ['totalScore', 'components', 'formattingViolations'],
+};
 
 // ─── Excel parsing ──────────────────────────────────────────────────────────
 type ParsedCell = {
@@ -217,9 +234,9 @@ function workbookToContext(tabs: ParsedTab[]): string {
   return lines.join('\n');
 }
 
-// ─── Claude API ─────────────────────────────────────────────────────────────
-async function callClaude(workbookContext: string, candidateId: string): Promise<any> {
-  const systemPrompt = `You are a strict, consistent DCF model grader for an M&A interview prep program.
+// ─── Gemini API ─────────────────────────────────────────────────────────────
+async function callGemini(workbookContext: string, candidateId: string): Promise<any> {
+  const systemInstruction = `You are a strict, consistent DCF model grader for an M&A interview prep program.
 
 You receive a parsed Excel workbook (cell values, formulas, font colours per cell). Grade the candidate's submission against the rubric below.
 
@@ -231,47 +248,45 @@ ${MODEL_ANSWER}
 ## Candidate name / identifier
 ${candidateId}
 
-## Output format
-Return ONLY valid JSON matching this schema, no prose, no markdown fences:
-${OUTPUT_SCHEMA}
-
 ## Important rules
 - Be SPECIFIC and ACTIONABLE in commentary. Reference cell addresses (e.g. "P&L!D14").
-- If a tab is missing, award 0 for the affected component(s) and call it out.
-- For formatting: blue = font color starting with "FF0000FF" or close (theme blue is also OK if explicitly noted as theme:5 or similar — if you can't tell, say so).
-- Whole-number scores only. Total must equal sum of components.
-`;
+- If a tab is missing, award 0 for the affected component(s) and call it out in the commentary.
+- For formatting: blue = font color starting with "FF0000FF" or RGB blue. Theme colors (e.g. "theme:5") may also be blue depending on theme — if uncertain, mention it.
+- Whole-number scores only. The sum of component scores MUST equal totalScore.
+- Always return all 4 components in the components array, even if a tab is missing (score 0 in that case).`;
 
-  const userMessage = `Here is the parsed workbook content:\n\n${workbookContext}\n\nGrade this submission. Return only the JSON object.`;
+  const userMessage = `Here is the parsed workbook content. Grade it strictly against the rubric.\n\n${workbookContext}`;
 
-  const res = await fetch('https://api.anthropic.com/v1/messages', {
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${encodeURIComponent(GEMINI_API_KEY)}`;
+  const res = await fetch(url, {
     method: 'POST',
-    headers: {
-      'x-api-key': ANTHROPIC_API_KEY,
-      'anthropic-version': '2023-06-01',
-      'content-type': 'application/json',
-    },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      model: ANTHROPIC_MODEL,
-      max_tokens: 2048,
-      system: systemPrompt,
-      messages: [{ role: 'user', content: userMessage }],
+      systemInstruction: { parts: [{ text: systemInstruction }] },
+      contents: [{ role: 'user', parts: [{ text: userMessage }] }],
+      generationConfig: {
+        responseMimeType: 'application/json',
+        responseSchema: RESPONSE_SCHEMA,
+        maxOutputTokens: 2048,
+        temperature: 0.2, // low temperature for consistent grading
+      },
     }),
   });
 
   if (!res.ok) {
     const errText = await res.text();
-    throw new Error(`Claude API error (${res.status}): ${errText.slice(0, 300)}`);
+    throw new Error(`Gemini API error (${res.status}): ${errText.slice(0, 300)}`);
   }
 
   const data = await res.json();
-  const text = data.content?.[0]?.text || '';
-  // Strip markdown fences if Claude added them despite instructions
-  const cleaned = text.replace(/^```(?:json)?\n?/i, '').replace(/\n?```$/, '').trim();
+  const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+  if (!text) {
+    throw new Error(`Gemini returned no text. Full response: ${JSON.stringify(data).slice(0, 300)}`);
+  }
   try {
-    return JSON.parse(cleaned);
+    return JSON.parse(text);
   } catch (e) {
-    throw new Error(`Failed to parse Claude response as JSON: ${cleaned.slice(0, 200)}`);
+    throw new Error(`Failed to parse Gemini response as JSON: ${text.slice(0, 200)}`);
   }
 }
 
@@ -280,8 +295,8 @@ Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS });
   if (req.method !== 'POST')   return json({ error: 'Method not allowed' }, 405);
 
-  if (!ANTHROPIC_API_KEY) {
-    return json({ error: 'ANTHROPIC_API_KEY not configured on the server.' }, 500);
+  if (!GEMINI_API_KEY) {
+    return json({ error: 'GEMINI_API_KEY not configured on the server.' }, 500);
   }
 
   const t0 = Date.now();
@@ -319,7 +334,7 @@ Deno.serve(async (req: Request) => {
 
     let report;
     try {
-      report = await callClaude(context, candidateId);
+      report = await callGemini(context, candidateId);
     } catch (e) {
       console.error('[grade-dcf] AI error:', e);
       return json({ error: 'AI grading service is currently unavailable. Please try again in a minute.' }, 503);

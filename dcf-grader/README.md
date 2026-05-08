@@ -8,7 +8,7 @@ AI-graded feedback for Prepped Talent candidate DCF models. Upload an `.xlsx`, g
 |---|---|
 | Frontend | Vanilla JS / HTML (`index.html` + `app.js`), no build step |
 | Backend | Supabase Edge Function (`supabase/functions/grade-dcf/index.ts`) — Deno + ExcelJS |
-| AI | Anthropic Claude Haiku (model `claude-haiku-4-5-20251001`) |
+| AI | Google Gemini 2.0 Flash (free tier: 15 RPM, 1500/day) — uses `responseSchema` for guaranteed structured JSON |
 | Hosting | Vercel (static frontend) + Supabase (Edge Function) |
 | Storage | None — files are processed in-memory and discarded after grading |
 
@@ -44,7 +44,8 @@ node tools/extract-reference.js sample-models/nba-happy-hour-v2.xlsx
 
 ## Deployment checklist
 
-- [ ] Set `ANTHROPIC_API_KEY` in Supabase project secrets (project: `dsnkabdmposyukcedduy`)
+- [ ] Get a free Gemini API key at https://aistudio.google.com/apikey
+- [ ] Set `GEMINI_API_KEY` in Supabase project secrets (project: `dsnkabdmposyukcedduy`)
 - [ ] Deploy `grade-dcf` Edge Function
 - [ ] Create new Vercel project pointed at the `dcf-grader/` subdirectory
 - [ ] Update GRADE_ENDPOINT in `app.js` if Supabase project changes
