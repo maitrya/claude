@@ -1,0 +1,13 @@
+# Generated reports
+portfolio_report.xlsx
+*_USD.xlsx
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# OS / editor
+.DS_Store
