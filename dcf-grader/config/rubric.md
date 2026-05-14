@@ -57,7 +57,7 @@ Tab assessed: **All tabs**
 | Hardcoded input values in **blue** font (RGB ~0,0,255 or theme blue) | 6 | All input cells blue; no hardcodes in black |
 | Formula cells in **black** font | 4 | All formulas black; no formulas accidentally blue |
 | Formulas dynamic from Assumptions tab — no hardcodes within formula cells in P&L or Valuation Calculation tabs | 4 | Inspecting each formula cell, no embedded numeric literals (other than `1`, `0`, `0.5` etc. for math) |
-| Exactly 3 tabs named: **P&L**, **Valuation Calculation**, **Assumptions**. No additional substantive tabs | 4 | All three present, exact names; allow non-substantive scratch tabs only if explicitly noted |
+| 3 logical sections present (Assumptions / P&L-like / Valuation-like). Banker-style naming (`Financials`, `DCF input`, etc.) accepted. | 4 | All three logical sections present; tab naming convention is flexible. Only deduct if a section is missing entirely. |
 | Layout is clean: labelled sections, consistent rows/columns, no merged cells that block formulas | 2 | Subjective — assess overall cleanliness |
 
 ## Commentary requirements (applies to all components)
