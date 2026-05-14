@@ -145,17 +145,136 @@ function updateSubmitBtn() {
   btn.disabled = !state.candidateId || !state.file;
 }
 
+// ─── Excel parsing (browser-side) ────────────────────────────────────────────
+const REQUIRED_TABS = ['P&L', 'Valuation Calculation', 'Assumptions'];
+const TAB_PATTERNS = {
+  'Assumptions':           [/^assumption/i, /^inputs?$/i, /^drivers?$/i, /^key\s*input/i],
+  'P&L':                   [/^p[\&\s]*l$/i, /income\s*statement/i, /^is$/i, /^company\s*fin/i, /^financials?$/i, /^profit/i],
+  'Valuation Calculation': [/^valuation/i, /^dcf\s*input/i, /^dcf\s*calc/i, /^dcf$/i, /^discounted/i, /^cashflow/i, /^dcf\s*output/i],
+};
+const MAX_CONTEXT_CHARS = 35000;
+
+// Unwrap ExcelJS cell value to a primitive. Non-recursive (avoid infinite loops).
+function unwrapCellValue(v, depth) {
+  if (depth == null) depth = 0;
+  if (depth > 3) return null;
+  if (v == null) return null;
+  if (typeof v === 'number' || typeof v === 'string' || typeof v === 'boolean') return v;
+  if (v instanceof Date) return v.toISOString().slice(0, 10);
+  if (typeof v !== 'object') return String(v);
+
+  if ('result' in v && v.result != null && typeof v.result !== 'object') return v.result;
+  if ('result' in v) return unwrapCellValue(v.result, depth + 1);
+  if ('richText' in v && Array.isArray(v.richText)) return v.richText.map(r => (r && r.text) || '').join('');
+  if ('text' in v && typeof v.text === 'string') return v.text;
+  if ('error' in v) return '#' + v.error;
+  if ('sharedFormula' in v) return null; // formula evaluated elsewhere
+  if ('formula' in v) return null;       // formula without result
+  return null;
+}
+
+function matchTabsToRubric(sheets) {
+  const matched = {};
+  const claimed = new Set();
+  for (const required of REQUIRED_TABS) {
+    const m = sheets.find(s => s.name.trim().toLowerCase() === required.toLowerCase());
+    if (m) { matched[required] = m.name; claimed.add(m.name); }
+  }
+  for (const required of REQUIRED_TABS) {
+    if (matched[required]) continue;
+    for (const pattern of TAB_PATTERNS[required] || []) {
+      const m = sheets.find(s => !claimed.has(s.name) && pattern.test(s.name.trim()));
+      if (m) { matched[required] = m.name; claimed.add(m.name); break; }
+    }
+  }
+  return matched;
+}
+
+async function parseExcel(file) {
+  const buffer = await file.arrayBuffer();
+  const wb = new ExcelJS.Workbook();
+  await wb.xlsx.load(buffer);
+
+  const allSheets = wb.worksheets.map(ws => ({ name: ws.name, ws }));
+  const matched = matchTabsToRubric(allSheets);
+  const allSheetNames = allSheets.map(s => s.name);
+
+  const lines = [];
+  let total = 0;
+
+  for (const required of REQUIRED_TABS) {
+    const sheetName = matched[required];
+    if (!sheetName) continue;
+    const ws = allSheets.find(s => s.name === sheetName).ws;
+    let rowCount = 0;
+    const header = `\n=== CATEGORY: ${required} | ORIGINAL TAB: "${sheetName}" ===`;
+    lines.push(header); total += header.length;
+    ws.eachRow({ includeEmpty: false }, (row, rowNum) => {
+      rowCount = Math.max(rowCount, rowNum);
+      row.eachCell({ includeEmpty: false }, (cell) => {
+        if (total > MAX_CONTEXT_CHARS) return;
+        const formula = (cell.formula || cell.value?.formula || cell.value?.sharedFormula) ?? null;
+        const value = unwrapCellValue(cell.value);
+        const colorObj = cell.font?.color;
+        let fontColor = null;
+        if (colorObj?.argb)        fontColor = colorObj.argb;
+        else if (colorObj?.theme != null) fontColor = 'theme:' + colorObj.theme;
+
+        const parts = [`${ws.name}!${cell.address}`];
+        if (formula) parts.push('f:' + String(formula).slice(0, 80));
+        if (value != null) {
+          const v = typeof value === 'string' ? JSON.stringify(value).slice(0, 40) : value;
+          parts.push('v:' + v);
+        }
+        if (fontColor) parts.push('c:' + fontColor);
+        const line = parts.join('|');
+        if (total + line.length > MAX_CONTEXT_CHARS) return;
+        lines.push(line);
+        total += line.length + 1;
+      });
+    });
+  }
+
+  const missingCategories = REQUIRED_TABS.filter(r => !matched[r]);
+  const namingDeviations = REQUIRED_TABS.filter(r => matched[r] && matched[r].toLowerCase() !== r.toLowerCase());
+
+  if (total >= MAX_CONTEXT_CHARS) lines.push('... (truncated at ' + MAX_CONTEXT_CHARS + ' chars)');
+
+  return {
+    context: lines.join('\n'),
+    matched, missingCategories, namingDeviations,
+    allSheets: allSheetNames,
+  };
+}
+
 async function submit() {
   state.screen = 'loading';
   state.error = '';
   render();
 
   try {
-    const fd = new FormData();
-    fd.append('candidate_id', state.candidateId);
-    fd.append('file', state.file);
+    // Parse client-side (much faster than server-side)
+    const parsed = await parseExcel(state.file);
 
-    const res = await fetch(GRADE_ENDPOINT, { method: 'POST', body: fd });
+    if (Object.keys(parsed.matched).length === 0) {
+      throw new Error('No tabs match the required structure. Found: ' + parsed.allSheets.join(', ') + '. Required: P&L, Valuation Calculation, Assumptions.');
+    }
+
+    const payload = {
+      candidate_id: state.candidateId,
+      file_name: state.file.name,
+      context: parsed.context,
+      matched: parsed.matched,
+      missing_categories: parsed.missingCategories,
+      naming_deviations: parsed.namingDeviations,
+      all_sheets: parsed.allSheets,
+    };
+
+    const res = await fetch(GRADE_ENDPOINT, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
     if (!res.ok) {
       const errBody = await res.json().catch(() => ({}));
       throw new Error(errBody.error || `Server returned ${res.status}`);
