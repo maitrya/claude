@@ -4,6 +4,7 @@ Tracks holdings with financial returns, ESG scores, and tangible impact metrics.
 """
 
 import csv
+import json
 import os
 from dataclasses import dataclass, field, asdict
 from typing import Dict, List, Optional
@@ -179,6 +180,40 @@ class Portfolio:
             summary.to_excel(writer, index=False, sheet_name="Summary")
 
         _format_workbook(file_path)
+        return file_path
+
+    def save_html(self, file_path: str) -> str:
+        """Write a self-contained HTML dashboard (Chart.js via CDN)."""
+        payload = {
+            "name": self.name,
+            "totals": {
+                "cost": round(self.total_cost(), 2),
+                "value": round(self.total_value(), 2),
+                "gain": round(self.total_gain(), 2),
+                "return_pct": round(self.total_return_pct(), 2),
+            },
+            "esg": {k: round(v, 1) for k, v in self.weighted_esg().items()},
+            "sectors": {k: round(v * 100, 2) for k, v in self.sector_allocation().items()},
+            "impact": {k: round(v, 2) for k, v in self.total_impact().items()},
+            "per1k": {k: round(v, 3) for k, v in self.impact_per_1k_invested().items()},
+            "holdings": [
+                {
+                    "ticker": h.ticker,
+                    "name": h.name,
+                    "sector": h.sector,
+                    "shares": h.shares,
+                    "cost": round(h.cost(), 2),
+                    "value": round(h.value(), 2),
+                    "gain": round(h.gain(), 2),
+                    "return_pct": round(h.return_pct(), 2),
+                    "esg": round(h.esg_score(), 1),
+                }
+                for h in self.holdings
+            ],
+        }
+        html = _HTML_TEMPLATE.replace("__DATA__", json.dumps(payload))
+        with open(file_path, "w") as f:
+            f.write(html)
         return file_path
 
     # ---- Reporting ----------------------------------------------------------
@@ -378,9 +413,234 @@ def main() -> None:
     print(portfolio.summary())
     print()
 
-    out = "portfolio_report.xlsx"
-    portfolio.save_excel(out)
-    print(f"Wrote formatted report to: {out}")
+    xlsx_out = "portfolio_report.xlsx"
+    html_out = "portfolio_report.html"
+    portfolio.save_excel(xlsx_out)
+    portfolio.save_html(html_out)
+    print(f"Wrote Excel report to:    {xlsx_out}")
+    print(f"Wrote HTML dashboard to:  {html_out}")
+
+
+_HTML_TEMPLATE = r"""<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Impact Investing Portfolio</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg: #0f1a14;
+    --panel: #15241c;
+    --panel-2: #1c2f25;
+    --accent: #4ade80;
+    --accent-dim: #22c55e;
+    --text: #e6f2ec;
+    --muted: #94a89b;
+    --neg: #f87171;
+    --pos: #4ade80;
+    --border: #25382c;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 1200px; margin: 0 auto; padding: 32px 24px 80px; }
+  header { margin-bottom: 24px; }
+  h1 { margin: 0 0 4px; font-size: 28px; font-weight: 700; letter-spacing: -0.02em; }
+  .sub { color: var(--muted); font-size: 14px; }
+  .grid { display: grid; gap: 16px; }
+  .kpis { grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); margin-top: 16px; }
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 18px 20px;
+  }
+  .card h3 {
+    margin: 0 0 8px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+  .card .val { font-size: 24px; font-weight: 700; letter-spacing: -0.01em; }
+  .card .sub2 { font-size: 12px; color: var(--muted); margin-top: 4px; }
+  .pos { color: var(--pos); }
+  .neg { color: var(--neg); }
+  .charts {
+    grid-template-columns: 1.2fr 1fr;
+    margin-top: 24px;
+  }
+  @media (max-width: 800px) { .charts { grid-template-columns: 1fr; } }
+  .chart-card { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 20px; }
+  .chart-card h2 { margin: 0 0 16px; font-size: 16px; font-weight: 600; }
+  .impact { grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); margin-top: 24px; }
+  .impact .card .val { color: var(--accent); }
+  .impact .card .sub2 { margin-top: 6px; }
+  section { margin-top: 32px; }
+  h2.section { font-size: 18px; font-weight: 600; margin: 0 0 12px; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  thead th {
+    text-align: left;
+    padding: 10px 12px;
+    background: var(--panel-2);
+    color: var(--muted);
+    font-weight: 600;
+    text-transform: uppercase;
+    font-size: 11px;
+    letter-spacing: 0.05em;
+    border-bottom: 1px solid var(--border);
+  }
+  tbody td {
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--border);
+  }
+  tbody tr:last-child td { border-bottom: none; }
+  .num { text-align: right; font-variant-numeric: tabular-nums; }
+  .table-wrap { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+  .bar { display: inline-block; height: 6px; background: var(--accent-dim); border-radius: 3px; vertical-align: middle; margin-left: 6px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1 id="title">Impact Portfolio</h1>
+    <div class="sub" id="subtitle"></div>
+  </header>
+
+  <div class="grid kpis" id="kpis"></div>
+
+  <div class="grid charts">
+    <div class="chart-card">
+      <h2>Sector allocation</h2>
+      <canvas id="sectorChart"></canvas>
+    </div>
+    <div class="chart-card">
+      <h2>Weighted ESG (0–100)</h2>
+      <canvas id="esgChart"></canvas>
+    </div>
+  </div>
+
+  <section>
+    <h2 class="section">Annual impact</h2>
+    <div class="grid impact" id="impact"></div>
+  </section>
+
+  <section>
+    <h2 class="section">Holdings</h2>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Ticker</th><th>Name</th><th>Sector</th>
+            <th class="num">Shares</th><th class="num">Cost</th>
+            <th class="num">Value</th><th class="num">P/L</th>
+            <th class="num">Return</th><th class="num">ESG</th>
+          </tr>
+        </thead>
+        <tbody id="holdings"></tbody>
+      </table>
+    </div>
+  </section>
+</div>
+
+<script>
+const data = __DATA__;
+
+function usd(n) { return "$" + n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+function pct(n) { return (n >= 0 ? "+" : "") + n.toFixed(2) + "%"; }
+function num(n, d) { return n.toLocaleString("en-US", { minimumFractionDigits: d, maximumFractionDigits: d }); }
+function signClass(n) { return n >= 0 ? "pos" : "neg"; }
+
+document.getElementById("title").textContent = data.name;
+document.getElementById("subtitle").textContent = data.holdings.length + " holdings • impact-weighted view";
+
+const kpis = [
+  { label: "Cost basis",   val: usd(data.totals.cost),  sub: "" },
+  { label: "Market value", val: usd(data.totals.value), sub: "" },
+  { label: "Unrealized P/L", val: usd(data.totals.gain), sub: pct(data.totals.return_pct), cls: signClass(data.totals.gain) },
+  { label: "Weighted ESG", val: data.esg.ESG.toFixed(1), sub: "E " + data.esg.E.toFixed(1) + " · S " + data.esg.S.toFixed(1) + " · G " + data.esg.G.toFixed(1) },
+];
+document.getElementById("kpis").innerHTML = kpis.map(k =>
+  `<div class="card"><h3>${k.label}</h3><div class="val ${k.cls || ""}">${k.val}</div><div class="sub2 ${k.cls || ""}">${k.sub}</div></div>`
+).join("");
+
+const impactCards = [
+  { label: "CO₂e avoided",    val: num(data.impact.co2e_avoided_t, 1) + " t",     sub: num(data.per1k.co2e_avoided_t, 3) + " t per $1k" },
+  { label: "Clean energy",    val: num(data.impact.clean_energy_mwh, 1) + " MWh", sub: num(data.per1k.clean_energy_mwh, 3) + " MWh per $1k" },
+  { label: "People served",   val: num(data.impact.people_served, 0),             sub: num(data.per1k.people_served, 2) + " per $1k" },
+  { label: "Jobs supported",  val: num(data.impact.jobs_supported, 0),            sub: num(data.per1k.jobs_supported, 3) + " per $1k" },
+];
+document.getElementById("impact").innerHTML = impactCards.map(k =>
+  `<div class="card"><h3>${k.label}</h3><div class="val">${k.val}</div><div class="sub2">${k.sub}</div></div>`
+).join("");
+
+document.getElementById("holdings").innerHTML = data.holdings.map(h => `
+  <tr>
+    <td><strong>${h.ticker}</strong></td>
+    <td>${h.name}</td>
+    <td>${h.sector}</td>
+    <td class="num">${num(h.shares, 0)}</td>
+    <td class="num">${usd(h.cost)}</td>
+    <td class="num">${usd(h.value)}</td>
+    <td class="num ${signClass(h.gain)}">${usd(h.gain)}</td>
+    <td class="num ${signClass(h.return_pct)}">${pct(h.return_pct)}</td>
+    <td class="num">${h.esg.toFixed(1)}</td>
+  </tr>
+`).join("");
+
+const palette = ["#4ade80", "#22d3ee", "#a78bfa", "#fbbf24", "#fb7185", "#60a5fa", "#f472b6", "#34d399"];
+const sectorEntries = Object.entries(data.sectors).sort((a, b) => b[1] - a[1]);
+
+new Chart(document.getElementById("sectorChart"), {
+  type: "doughnut",
+  data: {
+    labels: sectorEntries.map(([k]) => k),
+    datasets: [{
+      data: sectorEntries.map(([, v]) => v),
+      backgroundColor: palette,
+      borderColor: "#15241c",
+      borderWidth: 2,
+    }],
+  },
+  options: {
+    plugins: {
+      legend: { position: "right", labels: { color: "#e6f2ec", boxWidth: 12 } },
+      tooltip: { callbacks: { label: c => c.label + ": " + c.parsed.toFixed(1) + "%" } },
+    },
+    cutout: "60%",
+  },
+});
+
+new Chart(document.getElementById("esgChart"), {
+  type: "bar",
+  data: {
+    labels: ["Environment", "Social", "Governance", "Combined"],
+    datasets: [{
+      data: [data.esg.E, data.esg.S, data.esg.G, data.esg.ESG],
+      backgroundColor: ["#4ade80", "#22d3ee", "#a78bfa", "#fbbf24"],
+      borderRadius: 6,
+    }],
+  },
+  options: {
+    indexAxis: "y",
+    plugins: { legend: { display: false } },
+    scales: {
+      x: { min: 0, max: 100, ticks: { color: "#94a89b" }, grid: { color: "#25382c" } },
+      y: { ticks: { color: "#e6f2ec" }, grid: { display: false } },
+    },
+  },
+});
+</script>
+</body>
+</html>
+"""
 
 
 if __name__ == "__main__":
