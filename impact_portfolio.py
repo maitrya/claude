@@ -144,6 +144,50 @@ class Portfolio:
             return {k: 0.0 for k in totals}
         return {k: v / (cost / 1000.0) for k, v in totals.items()}
 
+    # ---- Live data ----------------------------------------------------------
+
+    def refresh_prices(self) -> Dict[str, float]:
+        """Fetch latest prices from Yahoo Finance and update each holding.
+
+        Returns a dict of {ticker: new_price} for tickers that were updated.
+        Holdings whose tickers can't be fetched keep their existing price.
+        """
+        try:
+            import yfinance as yf
+        except ImportError:
+            print("yfinance not installed — run: pip install yfinance")
+            return {}
+
+        symbols = [h.ticker for h in self.holdings]
+        updated: Dict[str, float] = {}
+        try:
+            data = yf.download(
+                tickers=" ".join(symbols),
+                period="1d",
+                progress=False,
+                auto_adjust=True,
+                threads=True,
+            )
+        except Exception as e:
+            print(f"Price fetch failed: {e}")
+            return {}
+
+        if data.empty:
+            print("Price fetch returned no data — keeping existing prices.")
+            return {}
+
+        close = data["Close"] if "Close" in data.columns.get_level_values(0) else data
+        for h in self.holdings:
+            try:
+                series = close[h.ticker] if h.ticker in close.columns else close
+                price = float(series.dropna().iloc[-1])
+                if price > 0:
+                    h.current_price = round(price, 2)
+                    updated[h.ticker] = h.current_price
+            except (KeyError, IndexError, ValueError):
+                continue
+        return updated
+
     # ---- I/O ----------------------------------------------------------------
 
     @classmethod
@@ -408,6 +452,13 @@ def main() -> None:
     else:
         print("No sample_portfolio.csv found — using built-in demo portfolio.")
         portfolio = _demo_portfolio()
+
+    print("Fetching live prices from Yahoo Finance ...")
+    updated = portfolio.refresh_prices()
+    if updated:
+        print(f"  Updated {len(updated)} of {len(portfolio.holdings)} tickers.")
+    else:
+        print("  No prices updated — using values from CSV.")
 
     print()
     print(portfolio.summary())
