@@ -1,0 +1,4 @@
+# Ignore generated daily briefs and cost log — these are runtime outputs, not source.
+# To commit a notable brief manually: git add -f output/daily_brief_YYYY-MM-DD.md
+daily_brief_*.md
+cost_log.csv
