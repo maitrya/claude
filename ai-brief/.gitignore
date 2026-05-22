@@ -1,0 +1,4 @@
+# Generated outputs — keep structure, ignore daily files
+output/daily_brief_*.md
+output/cost_log.csv
+output/run_*.log
