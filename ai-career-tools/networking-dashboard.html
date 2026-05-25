@@ -1,4 +1,4 @@
-<!-- v15: Lazy-load connections/messages per week (scales to any user) 2026-05-05 -->
+<!-- v16: Auto-import LinkedIn data via email forwarding 2026-05-25 -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -1498,6 +1498,131 @@ function GoalEditModal({ goals, onSave, onClose, saving }) {
   );
 }
 
+// ─── Auto-Import Setup Modal ─────────────────────────────────────────────────
+function AutoImportModal({ user, onClose }) {
+  const [tab, setTab] = useState('gmail');
+  const [lastImport, setLastImport] = useState(null);
+  const [copied, setCopied] = useState(false);
+  const importAddr = 'data@preppedtalent.com.au';
+
+  useEffect(() => {
+    if (!user?.id) return;
+    supabase.rpc('get_user_last_ingest', { p_user_id: user.id })
+      .then(({ data }) => { if (data && data[0]) setLastImport(data[0]); })
+      .catch(() => {});
+  }, [user?.id]);
+
+  const copyAddr = () => {
+    navigator.clipboard.writeText(importAddr);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  const gmailFilterURL = 'https://mail.google.com/mail/u/0/#settings/filters';
+
+  return (
+    <div style={{ position:'fixed',inset:0,background:'rgba(0,0,0,0.75)',zIndex:100,display:'flex',alignItems:'center',justifyContent:'center',padding:16,overflowY:'auto' }}
+      onClick={e => e.target === e.currentTarget && onClose()}>
+      <div className="glass-card p-6" style={{ maxWidth:560,width:'100%',maxHeight:'90vh',overflowY:'auto',animation:'fadeIn 0.2s ease' }}>
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h2 style={{ color:'#fff',fontWeight:800,fontSize:20,margin:0 }}>📧 Auto-import LinkedIn data</h2>
+            <p style={{ color:'rgba(255,255,255,0.5)',fontSize:13,margin:'4px 0 0' }}>Skip the manual upload — set up once, never think about it again.</p>
+          </div>
+          <button onClick={onClose} style={{ background:'none',border:'none',color:'rgba(255,255,255,0.4)',fontSize:22,cursor:'pointer' }}>✕</button>
+        </div>
+
+        {/* Last import status */}
+        {lastImport && (
+          <div style={{ background:'rgba(16,185,129,0.1)',border:'1px solid rgba(16,185,129,0.3)',borderRadius:10,padding:'10px 14px',marginBottom:18,fontSize:13,color:'#a7f3d0' }}>
+            ✅ Last auto-import: <strong style={{ color:'#10b981' }}>{new Date(lastImport.last_imported_at).toLocaleString('en-AU')}</strong> — added {lastImport.weeks_added} weeks, {lastImport.conns_added} connections, {lastImport.msgs_added} messages.
+          </div>
+        )}
+
+        {/* Auto-import address */}
+        <div style={{ marginBottom:20 }}>
+          <label style={{ color:'rgba(255,255,255,0.6)',fontSize:12,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.05em',display:'block',marginBottom:8 }}>
+            Your auto-import address
+          </label>
+          <div style={{ display:'flex',gap:8,alignItems:'stretch' }}>
+            <code style={{ flex:1,background:'rgba(255,255,255,0.06)',border:'1px solid rgba(168,85,247,0.3)',borderRadius:8,padding:'12px 14px',fontFamily:'monospace',fontSize:14,color:'#f9a8d4',userSelect:'all' }}>{importAddr}</code>
+            <button onClick={copyAddr} style={{ background:copied?'linear-gradient(135deg,#10b981,#059669)':'linear-gradient(135deg,#ec4899,#a855f7)',border:'none',borderRadius:8,padding:'0 18px',color:'#fff',fontWeight:700,fontSize:13,cursor:'pointer',minWidth:90 }}>
+              {copied ? '✓ Copied' : 'Copy'}
+            </button>
+          </div>
+        </div>
+
+        {/* How it works */}
+        <div style={{ background:'rgba(168,85,247,0.08)',borderLeft:'3px solid #a855f7',borderRadius:'0 8px 8px 0',padding:'12px 16px',marginBottom:20,fontSize:13,color:'rgba(255,255,255,0.75)',lineHeight:1.55 }}>
+          <strong style={{ color:'#d8b4fe' }}>How it works:</strong> Forward LinkedIn's data export email to the address above and your dashboard updates within 30 seconds. Set up an auto-forward filter once → it works forever.
+        </div>
+
+        {/* Tabs */}
+        <div style={{ display:'flex',gap:0,marginBottom:14,borderBottom:'1px solid rgba(255,255,255,0.1)' }}>
+          {['gmail','outlook','apple','other'].map(t => (
+            <button key={t} onClick={() => setTab(t)} style={{
+              padding:'10px 14px',background:'transparent',border:'none',borderBottom:tab===t?'2px solid #ec4899':'2px solid transparent',
+              color:tab===t?'#f9a8d4':'rgba(255,255,255,0.45)',fontWeight:600,fontSize:13,cursor:'pointer',textTransform:'capitalize'
+            }}>{t === 'apple' ? 'Apple Mail' : t}</button>
+          ))}
+        </div>
+
+        {/* Tab content */}
+        {tab === 'gmail' && (
+          <ol style={{ paddingLeft:20,margin:0,color:'rgba(255,255,255,0.75)',fontSize:14,lineHeight:1.7 }}>
+            <li>Open <a href={gmailFilterURL} target="_blank" rel="noreferrer" style={{ color:'#a855f7' }}>Gmail → Settings → Filters and Blocked Addresses</a></li>
+            <li>Click <strong>Create a new filter</strong></li>
+            <li>In the <strong>From</strong> field, type: <code style={{ background:'rgba(255,255,255,0.08)',padding:'2px 6px',borderRadius:4 }}>messages-noreply@linkedin.com</code></li>
+            <li>In the <strong>Subject</strong> field, type: <code style={{ background:'rgba(255,255,255,0.08)',padding:'2px 6px',borderRadius:4 }}>Your data is ready</code></li>
+            <li>Click <strong>Create filter</strong></li>
+            <li>Tick <strong>Forward it to</strong> → click <em>add forwarding address</em> → enter <code style={{ background:'rgba(255,255,255,0.08)',padding:'2px 6px',borderRadius:4 }}>{importAddr}</code></li>
+            <li>Gmail will email a confirmation code → check this inbox and paste it back into Gmail</li>
+            <li>Done. Future LinkedIn exports auto-import.</li>
+          </ol>
+        )}
+
+        {tab === 'outlook' && (
+          <ol style={{ paddingLeft:20,margin:0,color:'rgba(255,255,255,0.75)',fontSize:14,lineHeight:1.7 }}>
+            <li>Open <a href="https://outlook.live.com/mail/0/options/mail/rules" target="_blank" rel="noreferrer" style={{ color:'#a855f7' }}>Outlook → Settings → Mail → Rules</a></li>
+            <li>Click <strong>+ Add new rule</strong></li>
+            <li>Name: <em>LinkedIn auto-forward</em></li>
+            <li>Condition: <strong>From</strong> contains <code style={{ background:'rgba(255,255,255,0.08)',padding:'2px 6px',borderRadius:4 }}>messages-noreply@linkedin.com</code></li>
+            <li>Action: <strong>Forward to</strong> → <code style={{ background:'rgba(255,255,255,0.08)',padding:'2px 6px',borderRadius:4 }}>{importAddr}</code></li>
+            <li>Save → confirm the forwarding address when prompted</li>
+          </ol>
+        )}
+
+        {tab === 'apple' && (
+          <ol style={{ paddingLeft:20,margin:0,color:'rgba(255,255,255,0.75)',fontSize:14,lineHeight:1.7 }}>
+            <li>Open Mail → <strong>Settings → Rules → Add Rule</strong></li>
+            <li>Description: <em>LinkedIn auto-forward</em></li>
+            <li>If <strong>any</strong> condition: From contains <code style={{ background:'rgba(255,255,255,0.08)',padding:'2px 6px',borderRadius:4 }}>messages-noreply@linkedin.com</code></li>
+            <li>Then perform: <strong>Forward Message</strong> to <code style={{ background:'rgba(255,255,255,0.08)',padding:'2px 6px',borderRadius:4 }}>{importAddr}</code></li>
+            <li>Save and apply to existing messages if you want to import past exports</li>
+          </ol>
+        )}
+
+        {tab === 'other' && (
+          <div style={{ color:'rgba(255,255,255,0.75)',fontSize:14,lineHeight:1.7 }}>
+            <p style={{ margin:'0 0 12px' }}>Any modern email provider supports forwarding rules. The pattern:</p>
+            <ul style={{ paddingLeft:20,margin:'0 0 14px' }}>
+              <li><strong>Trigger:</strong> emails from <code style={{ background:'rgba(255,255,255,0.08)',padding:'2px 6px',borderRadius:4 }}>messages-noreply@linkedin.com</code></li>
+              <li><strong>Action:</strong> forward to <code style={{ background:'rgba(255,255,255,0.08)',padding:'2px 6px',borderRadius:4 }}>{importAddr}</code></li>
+            </ul>
+            <p style={{ margin:0,color:'rgba(255,255,255,0.55)',fontSize:13 }}>Don't want to set up a rule? Just hit <strong>Forward</strong> manually whenever LinkedIn sends you the export.</p>
+          </div>
+        )}
+
+        <div style={{ marginTop:24,paddingTop:16,borderTop:'1px solid rgba(255,255,255,0.08)' }}>
+          <p style={{ margin:0,color:'rgba(255,255,255,0.45)',fontSize:12,lineHeight:1.55 }}>
+            ⚠️ Make sure to forward from <strong style={{ color:'rgba(255,255,255,0.7)' }}>{user?.email || 'your registered email'}</strong> — we match incoming emails to your account by sender address.
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Loading screen ───────────────────────────────────────────────────────────
 function LoadingScreen({ message }) {
   return (
@@ -1514,6 +1639,7 @@ function LoadingScreen({ message }) {
 
 // ─── Dashboard ────────────────────────────────────────────────────────────────
 function Dashboard({ weekData: rawWeekData, onReset, onReload, user, onSignOut, goals, onGoalsSaved, platformBenchmarks, initialPendingFlags }) {
+  const [showAutoImport, setShowAutoImport] = useState(false);
   const [selectedIdx, setSelectedIdx] = useState(rawWeekData.length - 1);
   const [showRolling, setShowRolling] = useState(false);
   const [activeMetric, setActiveMetric] = useState(null);
@@ -1633,6 +1759,9 @@ function Dashboard({ weekData: rawWeekData, onReset, onReload, user, onSignOut, 
 
   return (
     <div style={{ minHeight:'100vh', background:'linear-gradient(135deg,#120818 0%,#1e0a30 100%)', padding:'24px 16px' }}>
+      {showAutoImport && (
+        <AutoImportModal user={user} onClose={() => setShowAutoImport(false)} />
+      )}
       {showGoalEdit && (
         <GoalEditModal goals={goals} onSave={handleGoalsSave} onClose={() => setShowGoalEdit(false)} saving={goalSaving} />
       )}
@@ -1651,6 +1780,10 @@ function Dashboard({ weekData: rawWeekData, onReset, onReload, user, onSignOut, 
             {user && (
               <div style={{ display:'flex',alignItems:'center',gap:8 }}>
                 <span style={{ color:'rgba(255,255,255,0.45)',fontSize:12,maxWidth:200,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap' }}>{user.email}</span>
+                <button onClick={() => setShowAutoImport(true)}
+                  style={{ background:'rgba(20,184,166,0.12)',border:'1px solid rgba(20,184,166,0.3)',color:'#5eead4',borderRadius:7,padding:'5px 11px',fontSize:11,fontWeight:600,cursor:'pointer' }}>
+                  📧 Auto-import
+                </button>
                 <button onClick={() => setShowGoalEdit(true)}
                   style={{ background:'rgba(168,85,247,0.12)',border:'1px solid rgba(168,85,247,0.25)',color:'#a855f7',borderRadius:7,padding:'5px 11px',fontSize:11,fontWeight:600,cursor:'pointer' }}>
                   🎯 Goals
