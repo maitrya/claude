@@ -57,30 +57,37 @@ def fill_financials_tab(ws, hist, fc) -> None:
         write(ws, f"{col}49", 0)
         write(ws, f"{col}53", 0)
 
-    for col, row in zip(cols_fc, fc):
-        write(ws, f"{col}11", row["rev"])
-        write(ws, f"{col}12", row["rev"])
-        write(ws, f"{col}13", 0.06)                # forecast growth %
-        write(ws, f"{col}15", row["ebitda"])
-        write(ws, f"{col}16", row["ebitda"])
-        write(ws, f"{col}18", row["ebitda"] / row["rev"])  # margin
-        write(ws, f"{col}20", -row["da"])
-        write(ws, f"{col}25", row["ebit"])
-        write(ws, f"{col}29", 0.19)
-        write(ws, f"{col}31", row["ebit"] - row["tax"])    # Net income
-        write(ws, f"{col}40", -row["capex"])
-        write(ws, f"{col}42", row["capex"] / row["rev"])   # % sales (capex)
-        write(ws, f"{col}45", -row["wc"])
-        write(ws, f"{col}47", -0.015)
-        write(ws, f"{col}49", 0)
-        write(ws, f"{col}53", 0)
+    # Forecast columns Q-V: all driver inputs live on the Assumptions tab (D27:D35).
+    # Cells here are pure formulas — change a driver on Assumptions, whole model recalcs.
+    A = "Assumptions!$D$"   # shorthand for absolute refs to the assumptions block
+    prev_col = "P"
+    for col in cols_fc:
+        write(ws, f"{col}13", f"={A}27")                              # growth (link)
+        write(ws, f"{col}18", f"={A}28")                              # margin (link)
+        write(ws, f"{col}29", f"={A}32")                              # tax rate (link)
+        write(ws, f"{col}47", f"=-{A}31")                             # WC % (link, negative)
+
+        write(ws, f"{col}11", f"={prev_col}11*(1+{col}13)")           # Revenue = prior × (1+g)
+        write(ws, f"{col}12", f"={col}11")                            # Management case
+        write(ws, f"{col}15", f"={col}11*{col}18")                    # EBITDA = revenue × margin
+        write(ws, f"{col}16", f"={col}15")
+        write(ws, f"{col}20", f"=-{col}11*{A}29")                     # D&A = -revenue × D&A%
+        write(ws, f"{col}25", f"={col}15+{col}20")                    # EBIT
+        write(ws, f"{col}31", f"={col}25*(1-{col}29)")                # Net income (~EBIT × (1–t))
+        write(ws, f"{col}40", f"=-{col}11*{A}30")                     # Capex = -revenue × capex%
+        write(ws, f"{col}42", f"={A}30")
+        write(ws, f"{col}45", f"={col}47*{col}11")                    # ΔWC = WC% × revenue
+        write(ws, f"{col}49", 0)                                      # Other CF
+        write(ws, f"{col}53", 0)                                      # Exceptional
+        prev_col = col
 
 
 def fill_dcf_input_tab(ws, hist, fc, params) -> None:
-    """DCF input tab: assumptions block + FCF build."""
-    write(ws, "F9", params["perp_growth"])
-    write(ws, "F10", params["exit_multiple"])
-    write(ws, "F11", params["wacc"])
+    """DCF input tab: assumptions block + FCF build (all forecast cells link to Assumptions)."""
+    A = "Assumptions!$D$"
+    write(ws, "F9", f"={A}34")     # perp growth → Assumptions D34
+    write(ws, "F10", f"={A}35")    # exit multiple → Assumptions D35
+    write(ws, "F11", f"={A}33")    # WACC → Assumptions D33
 
     # Column F=FY18, G=FY19, H=FY20, I=FY21, J=FY22, K=FY23, L=FY24, M=FY25, N=FY26..S=FY31
     historicals = {"I": "FY21", "J": "FY22", "K": "FY23", "L": "FY24", "M": "FY25"}
@@ -110,33 +117,35 @@ def fill_dcf_input_tab(ws, hist, fc, params) -> None:
         write(ws, f"{col}59", 0)
 
     forecast_cols = ["N", "O", "P", "Q", "R", "S"]
-    for col, row in zip(forecast_cols, fc):
-        write(ws, f"{col}24", row["rev"])
-        write(ws, f"{col}25", 0.06)
-        write(ws, f"{col}27", row["ebitda"])
-        write(ws, f"{col}28", row["ebitda"] / row["rev"])
-        write(ws, f"{col}29", 0)
-        write(ws, f"{col}31", -row["da"])
-        write(ws, f"{col}32", row["da"] / row["rev"])
-        write(ws, f"{col}33", row["da"] / row["capex"])
-        write(ws, f"{col}35", row["ebit"])
-        write(ws, f"{col}36", row["ebit"] / row["rev"])
-        write(ws, f"{col}39", -row["tax"])
-        write(ws, f"{col}40", 0.19)
-        write(ws, f"{col}42", row["ebiat"])
-        write(ws, f"{col}43", row["ebiat"] / row["rev"])
-        write(ws, f"{col}46", row["da"])
-        write(ws, f"{col}48", -row["capex"])
-        write(ws, f"{col}49", -row["capex"] / row["rev"])
-        write(ws, f"{col}50", row["da"] / row["capex"])
-        write(ws, f"{col}52", -row["wc"])
-        write(ws, f"{col}53", -0.015)
+    prev_col = "M"
+    for col in forecast_cols:
+        # Driver inputs link to Assumptions
+        write(ws, f"{col}25", f"={A}27")     # revenue growth
+        write(ws, f"{col}28", f"={A}28")     # EBITDA margin
+        write(ws, f"{col}40", f"={A}32")     # tax rate
+        write(ws, f"{col}49", f"=-{A}30")    # capex % of revenue (negative display)
+        write(ws, f"{col}53", f"=-{A}31")    # WC % of revenue (negative display)
+        # Formula-driven
+        write(ws, f"{col}24", f"={prev_col}24*(1+{col}25)")            # Revenue
+        write(ws, f"{col}27", f"={col}24*{col}28")                     # EBITDA
+        write(ws, f"{col}31", f"=-{col}24*{A}29")                      # D&A
+        write(ws, f"{col}32", f"={A}29")                               # D&A / revenue
+        write(ws, f"{col}35", f"={col}27+{col}31")                     # EBIT
+        write(ws, f"{col}36", f"={col}35/{col}24")                     # EBIT margin
+        write(ws, f"{col}39", f"=-{col}35*{col}40")                    # Tax
+        write(ws, f"{col}42", f"={col}35+{col}39")                     # EBIAT
+        write(ws, f"{col}43", f"={col}42/{col}24")                     # EBIAT margin
+        write(ws, f"{col}46", f"=-{col}31")                            # D&A addback
+        write(ws, f"{col}48", f"={col}49*{col}24")                     # Capex
+        write(ws, f"{col}50", f"=-{col}46/{col}48")                    # D&A / capex
+        write(ws, f"{col}52", f"={col}53*{col}24")                     # ΔWC
         write(ws, f"{col}55", 0)
         write(ws, f"{col}56", 0)
         write(ws, f"{col}58", 0)
         write(ws, f"{col}59", 0)
-        write(ws, f"{col}61", row["fcf"])
-        write(ws, f"{col}64", row["fcf"])
+        write(ws, f"{col}61", f"={col}42+{col}46+{col}48+{col}52+{col}55+{col}58")
+        write(ws, f"{col}64", f"={col}63+{col}61")
+        prev_col = col
 
     # Summary block — Row 111 dates, then summary rows 112-127 = same as above. The template
     # has formulas referencing F24/F27 etc. — those will recalc on open. We don't need to write.
@@ -191,9 +200,40 @@ def fill_dcf_output_tab(ws, fc, valuation, params) -> None:
 
 
 def fill_assumptions_tab(ws, params) -> None:
-    """Assumptions tab: write WACC into D-column comment area."""
-    # The template already has share price, NOSH, net debt. Nothing additional needed.
-    pass
+    """Assumptions tab: add a Forecast drivers block so a single cell controls everything.
+
+    Rows 26-34 are unused in the template — putting the driver inputs here so the
+    candidate (or Archie) can change the 6% growth in one place and have the whole
+    model recalculate.
+    """
+    write(ws, "C26", "Forecast drivers")
+    write(ws, "C27", "Revenue growth (annual)")
+    write(ws, "D27", 0.06)
+    write(ws, "E27", "p_rev_growth")
+    write(ws, "C28", "EBITDA margin (flat)")
+    write(ws, "D28", 0.0872)
+    write(ws, "E28", "p_ebitda_margin")
+    write(ws, "C29", "D&A / revenue")
+    write(ws, "D29", 0.038)
+    write(ws, "E29", "p_da_pct")
+    write(ws, "C30", "Capex / revenue")
+    write(ws, "D30", 0.03)
+    write(ws, "E30", "p_capex_pct")
+    write(ws, "C31", "ΔWC / revenue (outflow)")
+    write(ws, "D31", 0.015)
+    write(ws, "E31", "p_wc_pct")
+    write(ws, "C32", "Tax rate")
+    write(ws, "D32", 0.19)
+    write(ws, "E32", "p_tax_rate")
+    write(ws, "C33", "WACC")
+    write(ws, "D33", params["wacc"])
+    write(ws, "E33", "p_wacc")
+    write(ws, "C34", "Perpetuity growth rate")
+    write(ws, "D34", params["perp_growth"])
+    write(ws, "E34", "p_perp_g")
+    write(ws, "C35", "Exit EBITDA multiple")
+    write(ws, "D35", params["exit_multiple"])
+    write(ws, "E35", "p_exit_multiple")
 
 
 def main() -> None:
