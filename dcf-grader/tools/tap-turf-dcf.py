@@ -28,11 +28,67 @@ OTHER_CF = 0.0
 EXCEPTIONALS = 0.0
 TAX_RATE = 0.19                            # template Y29 hint: same as FY21 (effective ~18-19%)
 
-# DCF inputs
-WACC = 0.10
+# --- WACC build (CAPM with public-comp peer beta) ---------------------------
+# Tap & Turf is private. We unlever betas from listed comps, average, then
+# relever at the target capital structure.
+
+RISK_FREE = 0.0425        # AU 10-yr government bond yield, mid-2026
+ERP = 0.06                # Australian equity risk premium (Damodaran)
+SPECIFIC_RISK = 0.015     # Private illiquidity + venue concentration (top-3 = 55% of rev)
+
+# Comparable set — levered beta and D/E from public filings / Bloomberg-style sources
+COMPS = [
+    {"name": "Endeavour Group",            "ticker": "EDV.AX",  "lev_beta": 0.85, "de": 0.35},
+    {"name": "Coca-Cola Europacific",      "ticker": "CCEP",    "lev_beta": 0.90, "de": 0.50},
+    {"name": "Compass Group",              "ticker": "CPG.L",   "lev_beta": 0.95, "de": 0.30},
+    {"name": "Aramark",                    "ticker": "ARMK",    "lev_beta": 1.10, "de": 0.80},
+    {"name": "Aristocrat Leisure",         "ticker": "ALL.AX",  "lev_beta": 0.95, "de": 0.15},
+]
+
+# Target capital structure — asset-light, modest leverage. Net cash today but target
+# 10% debt / 90% equity capital structure for steady state.
+TARGET_DV = 0.10
+TARGET_EV_RATIO = 0.90
+TARGET_DE = TARGET_DV / TARGET_EV_RATIO
+
+COST_OF_DEBT_PRETAX = 0.055   # AU BBB corporate
+
+
+def unlever(lev_beta: float, de: float, tax: float) -> float:
+    return lev_beta / (1 + (1 - tax) * de)
+
+
+def relever(unlev_beta: float, de: float, tax: float) -> float:
+    return unlev_beta * (1 + (1 - tax) * de)
+
+
+def build_wacc() -> dict:
+    enriched = []
+    for c in COMPS:
+        ul = unlever(c["lev_beta"], c["de"], TAX_RATE)
+        enriched.append({**c, "unlev_beta": ul})
+    avg_unlev = sum(c["unlev_beta"] for c in enriched) / len(enriched)
+    target_lev_beta = relever(avg_unlev, TARGET_DE, TAX_RATE)
+    ke_capm = RISK_FREE + target_lev_beta * ERP
+    ke_adj = ke_capm + SPECIFIC_RISK
+    kd_after_tax = COST_OF_DEBT_PRETAX * (1 - TAX_RATE)
+    wacc = TARGET_EV_RATIO * ke_adj + TARGET_DV * kd_after_tax
+    return {
+        "comps": enriched,
+        "avg_unlev_beta": avg_unlev,
+        "target_lev_beta": target_lev_beta,
+        "ke_capm": ke_capm,
+        "ke_adjusted": ke_adj,
+        "kd_after_tax": kd_after_tax,
+        "wacc": wacc,
+    }
+
+
+# DCF inputs (WACC overridden after CAPM build below)
 PERP_GROWTH = 0.025
 EXIT_MULTIPLE = 8.0
 NET_DEBT = -84.62                          # net CASH per Assumptions D19 (negative = cash)
+WACC = build_wacc()["wacc"]
 
 FORECAST_YEARS = ["FY26", "FY27", "FY28", "FY29", "FY30", "FY31"]
 
@@ -108,10 +164,31 @@ def fmt(x: float, w: int = 9, dp: int = 1) -> str:
     return f"{x:>{w},.{dp}f}"
 
 
+def print_wacc_build() -> None:
+    w = build_wacc()
+    print("\nWACC build (CAPM, public-comp peer beta)")
+    print(f"{'Comparable':<28}{'Ticker':<10}{'Lev β':>8}{'D/E':>8}{'Unlev β':>10}")
+    for c in w["comps"]:
+        print(f"  {c['name']:<26}{c['ticker']:<10}{c['lev_beta']:>8.2f}{c['de']:>8.0%}{c['unlev_beta']:>10.3f}")
+    print(f"  {'Average unlevered β':<26}{'':<10}{'':>8}{'':>8}{w['avg_unlev_beta']:>10.3f}")
+    print(f"\n  Target D/(D+E)             : {TARGET_DV:.0%}")
+    print(f"  Target D/E                  : {TARGET_DE:.2f}")
+    print(f"  Re-levered β                : {w['target_lev_beta']:.3f}")
+    print(f"  Risk-free rate (AU 10Y)     : {RISK_FREE:.2%}")
+    print(f"  Equity risk premium         : {ERP:.2%}")
+    print(f"  CAPM cost of equity         : {w['ke_capm']:.2%}")
+    print(f"  + Specific risk premium     : {SPECIFIC_RISK:.2%}")
+    print(f"  Adjusted cost of equity     : {w['ke_adjusted']:.2%}")
+    print(f"  Pre-tax cost of debt        : {COST_OF_DEBT_PRETAX:.2%}")
+    print(f"  After-tax cost of debt      : {w['kd_after_tax']:.2%}")
+    print(f"  WACC                        : {w['wacc']:.2%}")
+
+
 def main() -> None:
     print("=" * 80)
     print("Tap & Turf Holdings Pty Ltd — DCF reference build")
     print("=" * 80)
+    print_wacc_build()
     print(f"Revenue growth        : {REV_GROWTH:.1%}")
     print(f"EBITDA margin (flat)  : {EBITDA_MARGIN:.2%}  (avg FY24-FY25 clean)")
     print(f"D&A / revenue         : {DA_PCT_REV:.2%}    (FY25)")

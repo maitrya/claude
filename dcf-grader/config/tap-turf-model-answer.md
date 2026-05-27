@@ -49,38 +49,60 @@
 | FY30 | 76.9 | 73.4 | (57.9) | (29.0) | **63.4** |
 | FY31 | 81.6 | 77.8 | (61.4) | (30.7) | **67.2** |
 
-## Expected WACC
+## Expected WACC (CAPM build)
 
-| Component | Value |
-|---|---|
-| Risk-free rate | (operator: pull from case-study brief — not given) |
-| Equity risk premium | (operator) |
-| Beta (levered) | (operator) |
-| Cost of equity (CAPM) | (operator) |
-| Pre-tax cost of debt | (operator) |
-| Tax rate | 19% |
-| **WACC used in DCF** | **10.0%** (central case) |
+The case study brief does not supply CAPM inputs, so the build below uses 2026-vintage AU market data and a public-comp peer beta unlevered/relevered to Tap & Turf's target capital structure.
+
+**Comparable set — unlevered beta**
+
+| Comparable | Ticker | Lev β | D/E | Unlev β |
+|---|---|---:|---:|---:|
+| Endeavour Group | EDV.AX | 0.85 | 35% | 0.66 |
+| Coca-Cola Europacific | CCEP | 0.90 | 50% | 0.64 |
+| Compass Group | CPG.L | 0.95 | 30% | 0.76 |
+| Aramark | ARMK | 1.10 | 80% | 0.67 |
+| Aristocrat Leisure | ALL.AX | 0.95 | 15% | 0.85 |
+| **Average unlevered β** | | | | **0.72** |
+
+**Re-lever and CAPM**
+
+| Component | Value | Notes |
+|---|---:|---|
+| Target D/(D+E) | 10% | Asset-light, modest debt capacity |
+| Re-levered β | 0.78 | β_u × (1 + (1–t) × D/E), t = 19% |
+| Risk-free rate | 4.25% | AU 10-yr government bond, mid-2026 |
+| Equity risk premium | 6.00% | Damodaran AU |
+| **CAPM cost of equity** | **8.93%** | Rf + β × ERP |
+| + Specific risk premium | 1.50% | Top-3 venue concentration (55% rev), illiquidity, contract renewal risk |
+| **Adjusted cost of equity** | **10.43%** | |
+| Pre-tax cost of debt | 5.50% | AU BBB corporate |
+| After-tax cost of debt | 4.46% | × (1 – 19%) |
+| **WACC** | **9.84%** | 0.90 × 10.43% + 0.10 × 4.46% |
+
+| Other DCF inputs | Value |
+|---|---:|
 | Perpetuity growth | 2.5% |
 | Exit EBITDA multiple | 8.0× |
+| Tax rate | 19% |
 
-The case study brief does not provide explicit CAPM inputs. 10% is a defensible central case for an Australian private F&B concessions business with stable revenue, modest leverage capacity, and 8-year average remaining contract term. Sensitivity range 8–12% WACC, 1.5–3.5% terminal growth.
+Acceptable WACC range: 9.0–11.0% (±100bps). Candidates who build CAPM from comps and document their peer set deserve full marks even at a different point estimate; candidates who hardcode a number without justification should lose marks.
 
 ## Expected valuation outputs ($m)
 
 | Component | Perpetuity Growth | Exit EBITDA Multiple |
 |---|---:|---:|
-| Sum of PV(FCF) | 262.5 | 262.5 |
-| Terminal value (undiscounted) | 918.8 | 1,427.6 |
-| PV(Terminal Value) | 518.6 | 805.8 |
-| **Enterprise Value** | **781.1** | **1,068.3** |
+| Sum of PV(FCF) | 263.6 | 263.6 |
+| Terminal value (undiscounted) | 939.2 | 1,427.6 |
+| PV(Terminal Value) | 534.9 | 813.0 |
+| **Enterprise Value** | **798.5** | **1,076.7** |
 | Net debt & adjustments | +84.6 (net cash) | +84.6 |
-| **Equity Value** | **865.7** | **1,152.9** |
-| Implied EV / LFY EBITDA | 6.12× | 8.37× |
-| Implied TV exit multiple (perpetuity) | 5.15× | n/a |
+| **Equity Value** | **883.2** | **1,161.3** |
+| Implied EV / LFY EBITDA | 6.26× | 8.44× |
+| Implied TV exit multiple (perpetuity) | 5.26× | n/a |
 
 **Acceptable EV range:** ±10% of expected per methodology.
 
-The perpetuity method implies a 5.15× LFY EBITDA at exit, which is conservative versus quoted F&B/concessions comparables. The exit-multiple method anchored at 8× is more aligned with sector norms; both should be presented and the candidate should comment on the divergence.
+The perpetuity method implies a 5.26× LFY EBITDA at exit, which is conservative versus quoted F&B/concessions comparables. The exit-multiple method anchored at 8× is more aligned with sector norms; both should be presented and the candidate should comment on the divergence.
 
 ## Sensitivity (perpetuity method, EV $m)
 
@@ -88,7 +110,8 @@ The perpetuity method implies a 5.15× LFY EBITDA at exit, which is conservative
 |---:|---:|---:|---:|---:|---:|
 | 8.0% | 938.5 | 997.1 | 1,066.5 | 1,149.7 | 1,251.3 |
 | 9.0% | 812.0 | 853.7 | 901.7 | 957.7 | 1,023.9 |
-| **10.0%** | 715.6 | 746.3 | **781.1** | 820.9 | 866.8 |
+| **~9.8% (central)** | ~734 | ~766 | **~798** | ~835 | ~876 |
+| 10.0% | 715.6 | 746.3 | 781.1 | 820.9 | 866.8 |
 | 11.0% | 639.8 | 663.1 | 689.2 | 718.5 | 751.8 |
 | 12.0% | 578.5 | 596.7 | 616.8 | 639.1 | 664.0 |
 
