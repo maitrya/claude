@@ -235,6 +235,54 @@ def fill_assumptions_tab(ws, params) -> None:
     write(ws, "D35", params["exit_multiple"])
     write(ws, "E35", "p_exit_multiple")
 
+    # Cash-free / debt-free deal basis → no net debt adjustment in the equity bridge.
+    write(ws, "D19", 0)
+
+
+def fill_company_fin_forecasts_tab(ws) -> None:
+    """Extend the 5-year plan with FY26-FY31 forecast columns (G-L).
+
+    EBITDA is driven to the DCF margin (Assumptions!D28); D&A, capex and WC link to
+    the same driver block. Dividends held at $24m/yr. Net cash position rolls forward.
+    Sign note: row 35 positive = net CASH (the business deleverages over the plan);
+    forecast WC is an OUTFLOW per the case study, flipping sign vs the historical inflow.
+    """
+    A = "Assumptions!$D$"
+    fc_cols = ["G", "H", "I", "J", "K", "L"]
+    fy_labels = ["FY26", "FY27", "FY28", "FY29", "FY30", "FY31"]
+    prev = "F"
+    for col, label in zip(fc_cols, fy_labels):
+        write(ws, f"{col}4", label)
+        write(ws, f"{col}5", f"={prev}5*(1+{A}27)")          # Revenue ×(1+g)
+        write(ws, f"{col}6", f"={col}5/{prev}5-1")           # YoY growth
+        write(ws, f"{col}7", f"={col}5*$F$8")                # GP = flat FY25 GM% × rev
+        write(ws, f"{col}8", f"={col}7/{col}5")              # GM%
+        write(ws, f"{col}10", f"={col}13-{col}12")           # Operating profit (from PBT)
+        write(ws, f"{col}9", f"={col}10-{col}7")             # Opex (plug)
+        write(ws, f"{col}11", f"={col}10/{col}5")            # Operating margin
+        write(ws, f"{col}12", "=$F$12")                      # Interest & amort (flat)
+        write(ws, f"{col}13", f"={col}16-{col}15")           # PBT underlying
+        write(ws, f"{col}15", 0)                             # Exceptionals (nil in forecast)
+        write(ws, f"{col}16", f"={col}20-{col}17-{col}18-{col}19")  # PBT post exc (plug to EBITDA)
+        write(ws, f"{col}17", "=$F$17")                      # Add back interest (flat)
+        write(ws, f"{col}18", "=$F$18")                      # Add back amortisation (flat)
+        write(ws, f"{col}19", f"={col}5*{A}29-{col}18")      # Depreciation = D&A − amort
+        write(ws, f"{col}20", f"={col}5*{A}28")              # EBITDA = margin × rev (DRIVER)
+        write(ws, f"{col}22", 0)                             # Non-cash exc adjust
+        write(ws, f"{col}23", f"=-{col}5*{A}30")             # Capex = −3% × rev
+        write(ws, f"{col}24", 0)                             # Acquisition
+        write(ws, f"{col}25", f"=-{col}16*{A}32")            # Tax = −19% × PBT post exc
+        write(ws, f"{col}26", f"=-{col}17")                  # Cash interest
+        write(ws, f"{col}27", f"=-{col}5*{A}31")             # Working capital OUTFLOW (−1.5%)
+        write(ws, f"{col}28", "=$F$28")                      # Dividend (−$24m, held)
+        write(ws, f"{col}29", 0)                             # Other (nil)
+        write(ws, f"{col}31", f"=SUM({col}20:{col}30)")      # Net cash flow
+        write(ws, f"{col}32", f"={col}31-{col}28-{col}24")   # Free cash flow
+        write(ws, f"{col}34", f"={prev}35")                  # Opening net cash
+        write(ws, f"{col}35", f"={col}34+{col}31")           # Closing net cash
+        write(ws, f"{col}36", f"=-{col}35/({col}20-{col}15)")  # Net debt : EBITDA
+        prev = col
+
 
 def main() -> None:
     ap = argparse.ArgumentParser()
@@ -255,6 +303,7 @@ def main() -> None:
     print(f"Sheets: {wb.sheetnames}")
 
     fill_assumptions_tab(wb["Assumptions"], params)
+    fill_company_fin_forecasts_tab(wb["Company fin forecasts"])
     fill_financials_tab(wb[" Financials"], dcf.HISTORICAL, fc)
     fill_dcf_input_tab(wb["DCF input"], dcf.HISTORICAL, fc, params)
     fill_dcf_output_tab(wb["DCF output"], fc, valuation, params)

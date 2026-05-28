@@ -96,12 +96,14 @@ Acceptable WACC range: 9.0–11.0% (±100bps). Candidates who build CAPM from co
 | Terminal value (undiscounted) | 912.9 | 1,427.6 |
 | PV(Terminal Value) | 514.0 | 803.7 |
 | **Enterprise Value** | **776.2** | **1,065.9** |
-| Net debt & adjustments | +84.6 (net cash) | +84.6 |
-| **Equity Value** | **860.8** | **1,150.5** |
+| Net debt & adjustments | nil (cash-free/debt-free) | nil |
+| **Equity Value** | **776.2** | **1,065.9** |
 | Implied EV / LFY EBITDA | 6.08× | 8.36× |
 | Implied TV exit multiple (perpetuity) | 5.12× | n/a |
 
 **Acceptable EV range:** ±10% of expected per methodology.
+
+> **Deal basis:** valued cash-free / debt-free, so EV = equity value (no net-debt adjustment). The `Company fin forecasts` tab rolls the net cash position forward (FY25 ≈ $32m → FY31 ≈ $218m) as FCF exceeds the $24m annual dividend — informational only, it does not feed the equity bridge.
 
 The perpetuity method implies a 5.12× LFY EBITDA at exit, which is conservative versus quoted F&B/concessions comparables. The exit-multiple method anchored at 8× is more aligned with sector norms; both should be presented and the candidate should comment on the divergence.
 

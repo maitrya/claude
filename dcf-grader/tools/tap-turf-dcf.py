@@ -88,7 +88,7 @@ def build_wacc() -> dict:
 # DCF inputs (WACC overridden after CAPM build below)
 PERP_GROWTH = 0.025
 EXIT_MULTIPLE = 8.0
-NET_DEBT = -84.62                          # net CASH per Assumptions D19 (negative = cash)
+NET_DEBT = 0.0                             # cash-free / debt-free deal basis → equity = EV
 WACC = build_wacc()["wacc"]
 
 FORECAST_YEARS = ["FY26", "FY27", "FY28", "FY29", "FY30", "FY31"]
