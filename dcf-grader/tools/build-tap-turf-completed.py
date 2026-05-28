@@ -13,9 +13,60 @@ Run from repo root:
 import argparse
 import importlib.util
 import pathlib
+import re
+import shutil
 import sys
+import tempfile
+import zipfile
 
 from openpyxl import load_workbook
+
+
+def sanitize_source(src: str) -> str:
+    """Return a path to a copy of `src` with all external links removed.
+
+    The template carries ~25 FactSet/Bloomberg add-in links to workbooks that
+    don't exist. openpyxl round-trips them inconsistently (workbook.xml ends up
+    declaring more <externalReference>s than there are link parts), which makes
+    Excel refuse to open the file or demand repair. None of them are needed for
+    the case study, so we strip the parts and every reference to them.
+    """
+    tmp = tempfile.mkdtemp(prefix="ttx_")
+    extracted = pathlib.Path(tmp) / "x"
+    with zipfile.ZipFile(src) as z:
+        z.extractall(extracted)
+
+    # 1. Drop the externalLinks directory and calcChain (Excel rebuilds calcChain).
+    shutil.rmtree(extracted / "xl" / "externalLinks", ignore_errors=True)
+    (extracted / "xl" / "calcChain.xml").unlink(missing_ok=True)
+
+    # 2. Strip <externalReferences>…</externalReferences> from workbook.xml, plus any
+    #    defined name that points at an external workbook ([1], [2], …) — those would
+    #    dangle as #REF! once the links are gone.
+    wb_xml = extracted / "xl" / "workbook.xml"
+    text = wb_xml.read_text(encoding="utf-8")
+    text = re.sub(r"<externalReferences>.*?</externalReferences>", "", text, flags=re.DOTALL)
+    text = re.sub(r"<definedName\b[^>]*>[^<]*\[\d+\][^<]*</definedName>", "", text)
+    wb_xml.write_text(text, encoding="utf-8")
+
+    # 3. Strip externalLink + calcChain relationships from workbook rels.
+    rels = extracted / "xl" / "_rels" / "workbook.xml.rels"
+    rtext = rels.read_text(encoding="utf-8")
+    rtext = re.sub(r'<Relationship[^>]*(externalLink|calcChain)[^>]*/>', "", rtext)
+    rels.write_text(rtext, encoding="utf-8")
+
+    # 4. Strip externalLink + calcChain overrides from [Content_Types].xml.
+    ct = extracted / "[Content_Types].xml"
+    ctext = ct.read_text(encoding="utf-8")
+    ctext = re.sub(r'<Override[^>]*(externalLink|calcChain)[^>]*/>', "", ctext)
+    ct.write_text(ctext, encoding="utf-8")
+
+    clean = pathlib.Path(tmp) / "clean.xlsx"
+    with zipfile.ZipFile(clean, "w", zipfile.ZIP_DEFLATED) as z:
+        for p in sorted(extracted.rglob("*")):
+            if p.is_file():
+                z.write(p, p.relative_to(extracted).as_posix())
+    return str(clean)
 
 
 def load_dcf_module():
@@ -303,7 +354,7 @@ def main() -> None:
         "exit_multiple": round(valuation["implied_exit_multiple_from_perp"], 2),
     }
 
-    wb = load_workbook(args.src)
+    wb = load_workbook(sanitize_source(args.src))
     print(f"Sheets: {wb.sheetnames}")
 
     fill_assumptions_tab(wb["Assumptions"], params)
