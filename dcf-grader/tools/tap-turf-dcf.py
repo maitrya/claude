@@ -45,13 +45,14 @@ COMPS = [
     {"name": "Aristocrat Leisure",         "ticker": "ALL.AX",  "lev_beta": 0.95, "de": 0.15},
 ]
 
-# Target capital structure — asset-light, modest leverage. Net cash today but target
-# 10% debt / 90% equity capital structure for steady state.
-TARGET_DV = 0.10
-TARGET_EV_RATIO = 0.90
-TARGET_DE = TARGET_DV / TARGET_EV_RATIO
+# Target capital structure — the business runs NET CASH and is asset-light by design,
+# with no debt facilities mentioned in the brief. We therefore value it on an
+# all-equity basis: WACC = cost of equity, beta = unlevered peer beta.
+TARGET_DV = 0.0
+TARGET_EV_RATIO = 1.0
+TARGET_DE = 0.0
 
-COST_OF_DEBT_PRETAX = 0.055   # AU BBB corporate
+COST_OF_DEBT_PRETAX = 0.055   # AU BBB corporate — informational only (zero weight)
 
 
 def unlever(lev_beta: float, de: float, tax: float) -> float:

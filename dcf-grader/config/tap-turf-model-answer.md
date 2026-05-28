@@ -64,20 +64,21 @@ The case study brief does not supply CAPM inputs, so the build below uses 2026-v
 | Aristocrat Leisure | ALL.AX | 0.95 | 15% | 0.85 |
 | **Average unlevered β** | | | | **0.72** |
 
-**Re-lever and CAPM**
+**Capital structure — all-equity.** Tap & Turf runs **net cash** ($84.6m), is asset-light by design, and the brief mentions no debt facilities. The business is therefore valued on an all-equity basis: **WACC = cost of equity**, using the unlevered peer beta directly (no relevering).
+
+**CAPM**
 
 | Component | Value | Notes |
 |---|---:|---|
-| Target D/(D+E) | 10% | Asset-light, modest debt capacity |
-| Re-levered β | 0.78 | β_u × (1 + (1–t) × D/E), t = 19% |
+| Unlevered β (peer average) | 0.72 | Used directly — target D/E = 0 |
 | Risk-free rate | 4.25% | AU 10-yr government bond, mid-2026 |
 | Equity risk premium | 6.00% | Damodaran AU |
-| **CAPM cost of equity** | **8.93%** | Rf + β × ERP |
+| **CAPM cost of equity** | **8.55%** | Rf + β_u × ERP |
 | + Specific risk premium | 1.50% | Top-3 venue concentration (55% rev), illiquidity, contract renewal risk |
-| **Adjusted cost of equity** | **10.43%** | |
-| Pre-tax cost of debt | 5.50% | AU BBB corporate |
-| After-tax cost of debt | 4.46% | × (1 – 19%) |
-| **WACC** | **9.84%** | 0.90 × 10.43% + 0.10 × 4.46% |
+| **Adjusted cost of equity** | **10.05%** | |
+| **WACC (= cost of equity)** | **10.05%** | No debt → no debt weighting |
+
+> Note: removing debt lowers beta (0.78 → 0.72, ↓ Ke) but removes the cheap after-tax-debt weighting (↑ WACC) — net, WACC rises slightly vs a levered structure. A buyer who intends to gear the business (e.g. PE, 3–4× EBITDA) would use a lower WACC; flag this as a sensitivity.
 
 | Other DCF inputs | Value |
 |---|---:|
@@ -85,24 +86,24 @@ The case study brief does not supply CAPM inputs, so the build below uses 2026-v
 | Exit EBITDA multiple | 8.0× |
 | Tax rate | 19% |
 
-Acceptable WACC range: 9.0–11.0% (±100bps). Candidates who build CAPM from comps and document their peer set deserve full marks even at a different point estimate; candidates who hardcode a number without justification should lose marks.
+Acceptable WACC range: 9.0–11.0% (±100bps). Candidates who build CAPM from comps and document their peer set deserve full marks even at a different point estimate; candidates who hardcode a number without justification should lose marks. A candidate who relevers to an assumed debt structure should justify why (net-cash business → all-equity is the default).
 
 ## Expected valuation outputs ($m)
 
 | Component | Perpetuity Growth | Exit EBITDA Multiple |
 |---|---:|---:|
-| Sum of PV(FCF) | 263.6 | 263.6 |
-| Terminal value (undiscounted) | 939.2 | 1,427.6 |
-| PV(Terminal Value) | 534.9 | 813.0 |
-| **Enterprise Value** | **798.5** | **1,076.7** |
+| Sum of PV(FCF) | 262.2 | 262.2 |
+| Terminal value (undiscounted) | 912.9 | 1,427.6 |
+| PV(Terminal Value) | 514.0 | 803.7 |
+| **Enterprise Value** | **776.2** | **1,065.9** |
 | Net debt & adjustments | +84.6 (net cash) | +84.6 |
-| **Equity Value** | **883.2** | **1,161.3** |
-| Implied EV / LFY EBITDA | 6.26× | 8.44× |
-| Implied TV exit multiple (perpetuity) | 5.26× | n/a |
+| **Equity Value** | **860.8** | **1,150.5** |
+| Implied EV / LFY EBITDA | 6.08× | 8.36× |
+| Implied TV exit multiple (perpetuity) | 5.12× | n/a |
 
 **Acceptable EV range:** ±10% of expected per methodology.
 
-The perpetuity method implies a 5.26× LFY EBITDA at exit, which is conservative versus quoted F&B/concessions comparables. The exit-multiple method anchored at 8× is more aligned with sector norms; both should be presented and the candidate should comment on the divergence.
+The perpetuity method implies a 5.12× LFY EBITDA at exit, which is conservative versus quoted F&B/concessions comparables. The exit-multiple method anchored at 8× is more aligned with sector norms; both should be presented and the candidate should comment on the divergence.
 
 ## Sensitivity (perpetuity method, EV $m)
 
@@ -110,7 +111,7 @@ The perpetuity method implies a 5.26× LFY EBITDA at exit, which is conservative
 |---:|---:|---:|---:|---:|---:|
 | 8.0% | 938.5 | 997.1 | 1,066.5 | 1,149.7 | 1,251.3 |
 | 9.0% | 812.0 | 853.7 | 901.7 | 957.7 | 1,023.9 |
-| **~9.8% (central)** | ~734 | ~766 | **~798** | ~835 | ~876 |
+| **10.05% (central)** | ~712 | ~743 | **~776** | ~816 | ~862 |
 | 10.0% | 715.6 | 746.3 | 781.1 | 820.9 | 866.8 |
 | 11.0% | 639.8 | 663.1 | 689.2 | 718.5 | 751.8 |
 | 12.0% | 578.5 | 596.7 | 616.8 | 639.1 | 664.0 |
