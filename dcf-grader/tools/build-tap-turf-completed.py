@@ -231,9 +231,9 @@ def fill_assumptions_tab(ws, params) -> None:
     write(ws, "C34", "Perpetuity growth rate")
     write(ws, "D34", params["perp_growth"])
     write(ws, "E34", "p_perp_g")
-    write(ws, "C35", "Exit EBITDA multiple")
+    write(ws, "C35", "Exit EBITDA multiple (implied — memo/check)")
     write(ws, "D35", params["exit_multiple"])
-    write(ws, "E35", "p_exit_multiple")
+    write(ws, "E35", "p_exit_multiple (no comps; implied from perpetuity)")
 
     # Cash-free / debt-free deal basis → no net debt adjustment in the equity bridge.
     write(ws, "D19", 0)
@@ -250,6 +250,7 @@ def fill_company_fin_forecasts_tab(ws) -> None:
     A = "Assumptions!$D$"
     fc_cols = ["G", "H", "I", "J", "K", "L"]
     fy_labels = ["FY26", "FY27", "FY28", "FY29", "FY30", "FY31"]
+    write(ws, "G3", "Forecast (assumption-driven, FY26+) →")  # mark the actuals/forecast boundary
     prev = "F"
     for col, label in zip(fc_cols, fy_labels):
         write(ws, f"{col}4", label)
@@ -296,7 +297,10 @@ def main() -> None:
     params = {
         "wacc": dcf.WACC,
         "perp_growth": dcf.PERP_GROWTH,
-        "exit_multiple": dcf.EXIT_MULTIPLE,
+        # No comparable transactions/trading comps for stadium concessions, so we don't
+        # assert an exit multiple. We store the perpetuity-IMPLIED multiple as a memo so
+        # the template's exit-multiple block reconciles to perpetuity as a sanity check.
+        "exit_multiple": round(valuation["implied_exit_multiple_from_perp"], 2),
     }
 
     wb = load_workbook(args.src)

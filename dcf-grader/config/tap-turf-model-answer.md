@@ -83,29 +83,36 @@ The case study brief does not supply CAPM inputs, so the build below uses 2026-v
 | Other DCF inputs | Value |
 |---|---:|
 | Perpetuity growth | 2.5% |
-| Exit EBITDA multiple | 8.0× |
 | Tax rate | 19% |
+| Exit EBITDA multiple | **not used** — no comps |
+
+**On the terminal value method:** the case study presents **no comparable transactions or trading comps** for stadium beverage concessions — the only named competitor (SportsServ) is in voluntary administration, and there are no listed pure-plays. An asserted exit multiple is therefore unsupportable. The valuation uses the **perpetuity growth (Gordon) method only**; the exit-multiple machinery in the template is set to the perpetuity-*implied* multiple (~5.1×) purely as a reconciliation/sanity check, not as an independent valuation.
 
 Acceptable WACC range: 9.0–11.0% (±100bps). Candidates who build CAPM from comps and document their peer set deserve full marks even at a different point estimate; candidates who hardcode a number without justification should lose marks. A candidate who relevers to an assumed debt structure should justify why (net-cash business → all-equity is the default).
 
 ## Expected valuation outputs ($m)
 
-| Component | Perpetuity Growth | Exit EBITDA Multiple |
-|---|---:|---:|
-| Sum of PV(FCF) | 262.2 | 262.2 |
-| Terminal value (undiscounted) | 912.9 | 1,427.6 |
-| PV(Terminal Value) | 514.0 | 803.7 |
-| **Enterprise Value** | **776.2** | **1,065.9** |
-| Net debt & adjustments | nil (cash-free/debt-free) | nil |
-| **Equity Value** | **776.2** | **1,065.9** |
-| Implied EV / LFY EBITDA | 6.08× | 8.36× |
-| Implied TV exit multiple (perpetuity) | 5.12× | n/a |
+| Component | Perpetuity Growth (primary) |
+|---|---:|
+| Sum of PV(FCF) | 262.2 |
+| Terminal value (undiscounted) | 912.9 |
+| PV(Terminal Value) | 514.0 |
+| **Enterprise Value** | **776.2** |
+| Net debt & adjustments | nil (cash-free/debt-free) |
+| **Equity Value** | **776.2** |
 
-**Acceptable EV range:** ±10% of expected per methodology.
+**Reasonableness checks (not independent methods):**
+
+| Check | Value |
+|---|---:|
+| Implied EV / LFY EBITDA | 6.08× |
+| Implied exit multiple (TV ÷ FY31 EBITDA) | 5.12× |
+
+**Acceptable EV range:** ±10%.
 
 > **Deal basis:** valued cash-free / debt-free, so EV = equity value (no net-debt adjustment). The `Company fin forecasts` tab rolls the net cash position forward (FY25 ≈ $32m → FY31 ≈ $218m) as FCF exceeds the $24m annual dividend — informational only, it does not feed the equity bridge.
 
-The perpetuity method implies a 5.12× LFY EBITDA at exit, which is conservative versus quoted F&B/concessions comparables. The exit-multiple method anchored at 8× is more aligned with sector norms; both should be presented and the candidate should comment on the divergence.
+The implied 5–6× EBITDA is modest, consistent with a niche, concentration-heavy private asset with no liquid comparable set. A candidate who asserts a higher exit multiple should be asked to justify the source — there isn't one in the case.
 
 ## Sensitivity (perpetuity method, EV $m)
 
@@ -121,8 +128,9 @@ The perpetuity method implies a 5.12× LFY EBITDA at exit, which is conservative
 ## Common pitfalls to flag
 
 - ❌ Using the template's "<<< note" hints (1% terminal growth, 9% terminal margin, D&A as % of capex) instead of the CFO commentary in the case study text
-- ❌ Hardcoded revenue figures in P&L — should drive from Assumptions
-- ❌ Forgetting that net debt is NEGATIVE ($84.6m **net cash**), so adds to EV in the equity bridge
+- ❌ Hardcoded revenue figures in P&L — should drive from the Assumptions driver block
+- ❌ **Asserting an exit EBITDA multiple** — there are no comps in the case (SportsServ in administration, no listed pure-plays). A sourced multiple is not possible; use perpetuity growth
+- ❌ Applying net debt to the bridge — the deal is cash-free/debt-free, so EV = equity value
 - ❌ Using EBITDA *post*-exceptionals as the run-rate margin (brief says clean margin, recent 2yrs)
 - ❌ Tax rate inconsistency between WACC build and FCF tax line
 - ❌ Treating ΔWC as an inflow (brief explicitly says **outflow** of ~1.5%)
@@ -134,8 +142,8 @@ The perpetuity method implies a 5.12× LFY EBITDA at exit, which is conservative
 
 ## Notes for the AI grader
 
-- Acceptable EV range: ±10% of expected per methodology.
-- Either Gordon Growth or Exit Multiple methodology is acceptable; ideally candidate shows both.
+- Acceptable EV range: ±10%.
+- **Perpetuity growth (Gordon) is the expected method.** The case has no comparable set, so an exit-multiple valuation cannot be sourced — credit candidates who recognise this; do not require a second method.
 - For commentary, reference SPECIFIC cells (e.g. "Financials!Q13 contains hardcoded 6% growth — acceptable; flag if it links to a wider Assumptions cell").
 - Award partial marks generously when structural approach is correct but exact numbers differ — the goal is teaching, not penalising.
 - Discount convention: mid-year for explicit FCFs, end-of-year for TV. The template uses days-based discounting via columns I66:S66 — accept either approach.
