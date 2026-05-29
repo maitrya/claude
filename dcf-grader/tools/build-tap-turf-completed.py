@@ -291,17 +291,24 @@ def fill_assumptions_tab(ws, params) -> None:
 
 
 def fill_company_fin_forecasts_tab(ws) -> None:
-    """Extend the 5-year plan with FY26-FY31 forecast columns (G-L).
+    """Extend the 5-year plan with FY26-FY31 and strip ALL debt (per no-debt structure).
 
-    EBITDA is driven to the DCF margin (Assumptions!D28); D&A, capex and WC link to
-    the same driver block. Dividends held at $24m/yr. Net cash position rolls forward.
-    Sign note: row 35 positive = net CASH (the business deleverages over the plan);
-    forecast WC is an OUTFLOW per the case study, flipping sign vs the historical inflow.
+    The business is all-equity (net cash, no facilities), so every interest line
+    (rows 12/17/26) and the net-debt roll (rows 34-36) are zeroed across all years.
+    EBITDA is set directly (historical = reported post-exceptional; forecast =
+    margin × revenue) and the P&L is re-derived from it, so removing interest does
+    NOT shift EBITDA/EBIT. Dividends held at $24m/yr; WC is a forecast outflow.
     """
     A = "Assumptions!$D$"
+    hist_cols = ["B", "C", "D", "E", "F"]
+    hist_ebitda = {"B": 94.15, "C": 74.62, "D": 105.04, "E": 125.53, "F": 122.70}
     fc_cols = ["G", "H", "I", "J", "K", "L"]
     fy_labels = ["FY26", "FY27", "FY28", "FY29", "FY30", "FY31"]
-    write(ws, "G3", "Forecast (assumption-driven, FY26+) →")  # mark the actuals/forecast boundary
+    all_cols = hist_cols + fc_cols
+
+    write(ws, "G3", "Forecast (assumption-driven, FY26+) →")
+
+    # Forecast P&L / cashflow — no interest, no debt
     prev = "F"
     for col, label in zip(fc_cols, fy_labels):
         write(ws, f"{col}4", label)
@@ -309,31 +316,42 @@ def fill_company_fin_forecasts_tab(ws) -> None:
         write(ws, f"{col}6", f"={col}5/{prev}5-1")           # YoY growth
         write(ws, f"{col}7", f"={col}5*$F$8")                # GP = flat FY25 GM% × rev
         write(ws, f"{col}8", f"={col}7/{col}5")              # GM%
-        write(ws, f"{col}10", f"={col}13-{col}12")           # Operating profit (from PBT)
+        write(ws, f"{col}10", f"={col}16-{col}15")           # Operating profit = EBIT (no interest)
         write(ws, f"{col}9", f"={col}10-{col}7")             # Opex (plug)
         write(ws, f"{col}11", f"={col}10/{col}5")            # Operating margin
-        write(ws, f"{col}12", "=$F$12")                      # Interest & amort (flat)
-        write(ws, f"{col}13", f"={col}16-{col}15")           # PBT underlying
-        write(ws, f"{col}15", 0)                             # Exceptionals (nil in forecast)
-        write(ws, f"{col}16", f"={col}20-{col}17-{col}18-{col}19")  # PBT post exc (plug to EBITDA)
-        write(ws, f"{col}17", "=$F$17")                      # Add back interest (flat)
-        write(ws, f"{col}18", "=$F$18")                      # Add back amortisation (flat)
+        write(ws, f"{col}15", 0)                             # Exceptionals (nil)
+        write(ws, f"{col}18", "=$F$18")                      # Amortisation (flat)
         write(ws, f"{col}19", f"={col}5*{A}29-{col}18")      # Depreciation = D&A − amort
         write(ws, f"{col}20", f"={col}5*{A}28")              # EBITDA = margin × rev (DRIVER)
+        write(ws, f"{col}16", f"={col}20-{col}18-{col}19")   # EBIT (= PBT, no interest)
+        write(ws, f"{col}13", f"={col}16-{col}15")           # PBT underlying
         write(ws, f"{col}22", 0)                             # Non-cash exc adjust
         write(ws, f"{col}23", f"=-{col}5*{A}30")             # Capex = −3% × rev
         write(ws, f"{col}24", 0)                             # Acquisition
-        write(ws, f"{col}25", f"=-{col}16*{A}32")            # Tax = −19% × PBT post exc
-        write(ws, f"{col}26", f"=-{col}17")                  # Cash interest
+        write(ws, f"{col}25", f"=-{col}16*{A}32")            # Tax = −EBIT × tax
         write(ws, f"{col}27", f"=-{col}5*{A}31")             # Working capital OUTFLOW (−1.5%)
         write(ws, f"{col}28", "=$F$28")                      # Dividend (−$24m, held)
         write(ws, f"{col}29", 0)                             # Other (nil)
         write(ws, f"{col}31", f"=SUM({col}20:{col}30)")      # Net cash flow
         write(ws, f"{col}32", f"={col}31-{col}28-{col}24")   # Free cash flow
-        write(ws, f"{col}34", f"={prev}35")                  # Opening net cash
-        write(ws, f"{col}35", f"={col}34+{col}31")           # Closing net cash
-        write(ws, f"{col}36", f"=-{col}35/({col}20-{col}15)")  # Net debt : EBITDA
         prev = col
+
+    # Historical: re-derive EBIT/PBT from reported EBITDA so zeroing interest
+    # doesn't change the reported EBITDA.
+    for col in hist_cols:
+        write(ws, f"{col}20", hist_ebitda[col])              # EBITDA (reported, post-exc)
+        write(ws, f"{col}16", f"={col}20-{col}18-{col}19")   # EBIT (no interest)
+        write(ws, f"{col}13", f"={col}16-{col}15")           # PBT underlying
+
+    # Strip every debt / interest line across ALL years (historical + forecast)
+    for col in all_cols:
+        write(ws, f"{col}12", 0)   # Interest and Amortisation
+        write(ws, f"{col}17", 0)   # Add back: Interest
+        write(ws, f"{col}26", 0)   # Interest (cash)
+        write(ws, f"{col}34", 0)   # Opening Net Debt
+        write(ws, f"{col}35", 0)   # Closing Net Debt
+        write(ws, f"{col}36", 0)   # Net debt : EBITDA
+
 
 
 def main() -> None:
