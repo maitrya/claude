@@ -273,7 +273,7 @@ def fill_assumptions_tab(ws, params) -> None:
     write(ws, "C31", "ΔWC / revenue (outflow)")
     write(ws, "D31", 0.015)
     write(ws, "E31", "p_wc_pct")
-    write(ws, "C32", "Tax rate")
+    write(ws, "C32", "Effective tax rate")
     write(ws, "D32", 0.19)
     write(ws, "E32", "p_tax_rate")
     write(ws, "C33", "WACC")
@@ -282,9 +282,21 @@ def fill_assumptions_tab(ws, params) -> None:
     write(ws, "C34", "Perpetuity growth rate")
     write(ws, "D34", params["perp_growth"])
     write(ws, "E34", "p_perp_g")
-    write(ws, "C35", "Exit EBITDA multiple (implied — memo/check)")
-    write(ws, "D35", params["exit_multiple"])
-    write(ws, "E35", "p_exit_multiple (no comps; implied from perpetuity)")
+    write(ws, "C35", "Exit EBITDA multiple (peer median)")
+    write(ws, "D35", "=D43")                          # link to comps median below
+    write(ws, "E35", "p_exit_multiple")
+
+    # Comparable trading multiples — same peer set as the WACC beta build.
+    write(ws, "C37", "Comparable trading multiples")
+    write(ws, "D37", "EV/EBITDA")
+    comps = params.get("comps", [])
+    r = 38
+    for c in comps:
+        write(ws, f"C{r}", c["name"])
+        write(ws, f"D{r}", c["ev_ebitda"])
+        r += 1
+    write(ws, "C43", "Median EV/EBITDA")
+    write(ws, "D43", f"=MEDIAN(D38:D{r-1})")
 
     # Cash-free / debt-free deal basis → no net debt adjustment in the equity bridge.
     write(ws, "D19", 0)
@@ -369,7 +381,8 @@ def main() -> None:
         # No comparable transactions/trading comps for stadium concessions, so we don't
         # assert an exit multiple. We store the perpetuity-IMPLIED multiple as a memo so
         # the template's exit-multiple block reconciles to perpetuity as a sanity check.
-        "exit_multiple": round(valuation["implied_exit_multiple_from_perp"], 2),
+        "exit_multiple": dcf.EXIT_MULTIPLE,
+        "comps": dcf.COMPS,
     }
 
     wb = load_workbook(sanitize_source(args.src))

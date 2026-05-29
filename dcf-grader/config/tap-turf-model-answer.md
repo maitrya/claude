@@ -25,7 +25,7 @@
 | ΔWC / revenue (outflow) | 1.50% | CFO: "averaged approximately one and a half percent of revenue as an outflow" |
 | Other cashflows | nil | "no material provisions, no significant one-off items" |
 | Exceptional items | nil | Brief silent on forward exceptionals |
-| Tax rate | 19% | Template hint Y29 ("same as 2021"); aligns with FY21 effective rate. Australian SME-band ~25% is also defensible. |
+| Effective tax rate | 19% | Per operator. |
 
 ## Expected P&L outputs ($m)
 
@@ -83,23 +83,39 @@ The case study brief does not supply CAPM inputs, so the build below uses 2026-v
 | Other DCF inputs | Value |
 |---|---:|
 | Perpetuity growth | 2.5% |
-| Tax rate | 19% |
-| Exit EBITDA multiple | **not used** — no comps |
+| Effective tax rate | 19% |
+| Exit EBITDA multiple | 10.5× (peer median) |
 
-**On the terminal value method:** the case study presents **no comparable transactions or trading comps** for stadium beverage concessions — the only named competitor (SportsServ) is in voluntary administration, and there are no listed pure-plays. An asserted exit multiple is therefore unsupportable. The valuation uses the **perpetuity growth (Gordon) method only**; the exit-multiple machinery in the template is set to the perpetuity-*implied* multiple (~5.1×) purely as a reconciliation/sanity check, not as an independent valuation.
+WACC inputs (risk-free, ERP, beta peer set, specific-risk premium) are provided to candidates in the brief; candidates build CAPM/WACC from them.
+
+**Terminal value — two methods.** Both are presented:
+
+1. **Perpetuity growth (Gordon)** at g = 2.5%.
+2. **Exit EBITDA multiple** at the **median trading EV/EBITDA of the WACC peer set**:
+
+| Comparable | EV/EBITDA |
+|---|---:|
+| Endeavour Group | 8.0× |
+| Coca-Cola Europacific | 9.5× |
+| Compass Group | 13.0× |
+| Aramark | 10.5× |
+| Aristocrat Leisure | 13.0× |
+| **Median** | **10.5×** |
+
+> **Caveat for grading:** the peer set is large-cap, diversified consumer/leisure names, so the 10.5× multiple sits well above what the perpetuity method implies for a niche, concentration-heavy private operator (~5×). The two methods therefore diverge widely ($776m vs ~$1.32bn). A strong candidate uses the exit-multiple as a cross-check and comments on why the peer multiple likely overstates value for this business.
 
 Acceptable WACC range: 9.0–11.0% (±100bps). Candidates who build CAPM from comps and document their peer set deserve full marks even at a different point estimate; candidates who hardcode a number without justification should lose marks. A candidate who relevers to an assumed debt structure should justify why (net-cash business → all-equity is the default).
 
 ## Expected valuation outputs ($m)
 
-| Component | Perpetuity Growth (primary) |
-|---|---:|
-| Sum of PV(FCF) | 262.2 |
-| Terminal value (undiscounted) | 912.9 |
-| PV(Terminal Value) | 514.0 |
-| **Enterprise Value** | **776.2** |
-| Net debt & adjustments | nil (cash-free/debt-free) |
-| **Equity Value** | **776.2** |
+| Component | Perpetuity Growth | Exit Multiple (10.5×) |
+|---|---:|---:|
+| Sum of PV(FCF) | 262.2 | 262.2 |
+| Terminal value (undiscounted) | 912.9 | 1,873.7 |
+| PV(Terminal Value) | 514.0 | 1,054.9 |
+| **Enterprise Value** | **776.2** | **1,317.0** |
+| Net debt & adjustments | nil (cash-free/debt-free) | nil |
+| **Equity Value** | **776.2** | **1,317.0** |
 
 **Reasonableness checks (not independent methods):**
 
@@ -112,7 +128,7 @@ Acceptable WACC range: 9.0–11.0% (±100bps). Candidates who build CAPM from co
 
 > **Deal basis:** valued cash-free / debt-free, so EV = equity value (no net-debt adjustment). The `Company fin forecasts` tab rolls the net cash position forward (FY25 ≈ $32m → FY31 ≈ $218m) as FCF exceeds the $24m annual dividend — informational only, it does not feed the equity bridge.
 
-The implied 5–6× EBITDA is modest, consistent with a niche, concentration-heavy private asset with no liquid comparable set. A candidate who asserts a higher exit multiple should be asked to justify the source — there isn't one in the case.
+The perpetuity method implies ~5–6× LFY EBITDA — modest, consistent with a niche, concentration-heavy private asset. The 10.5× peer-multiple method is materially higher because the comp set is large-cap and diversified; treat perpetuity as the more grounded figure and the exit multiple as an upper-bound cross-check.
 
 ## Sensitivity (perpetuity method, EV $m)
 
@@ -129,10 +145,10 @@ The implied 5–6× EBITDA is modest, consistent with a niche, concentration-hea
 
 - ❌ Using the template's "<<< note" hints (1% terminal growth, 9% terminal margin, D&A as % of capex) instead of the CFO commentary in the case study text
 - ❌ Hardcoded revenue figures in P&L — should drive from the Assumptions driver block
-- ❌ **Asserting an exit EBITDA multiple** — there are no comps in the case (SportsServ in administration, no listed pure-plays). A sourced multiple is not possible; use perpetuity growth
+- ❌ Taking the peer exit multiple (10.5×) at face value without noting it overstates value for a niche operator vs the ~5× perpetuity-implied level
 - ❌ Applying net debt to the bridge — the deal is cash-free/debt-free, so EV = equity value
 - ❌ Using EBITDA *post*-exceptionals as the run-rate margin (brief says clean margin, recent 2yrs)
-- ❌ Tax rate inconsistency between WACC build and FCF tax line
+- ❌ Effective tax rate inconsistency between the WACC build and the FCF tax line (use 19% throughout)
 - ❌ Treating ΔWC as an inflow (brief explicitly says **outflow** of ~1.5%)
 - ❌ Discount factor inconsistency — mid-year for explicit period but end-of-year for TV is conventional; both must be applied consistently
 - ❌ Not deducting capex from FCF (or netting capex against D&A)
@@ -142,8 +158,8 @@ The implied 5–6× EBITDA is modest, consistent with a niche, concentration-hea
 
 ## Notes for the AI grader
 
-- Acceptable EV range: ±10%.
-- **Perpetuity growth (Gordon) is the expected method.** The case has no comparable set, so an exit-multiple valuation cannot be sourced — credit candidates who recognise this; do not require a second method.
+- Acceptable EV range: ±10% per method.
+- **Both methods expected:** perpetuity growth (g 2.5%) and exit multiple (10.5× peer median). Perpetuity (~$776m) is the more grounded figure; the exit multiple (~$1.32bn) is an upper-bound cross-check. Credit candidates who flag that the large-cap peer multiple overstates value for a niche operator.
 - For commentary, reference SPECIFIC cells (e.g. "Financials!Q13 contains hardcoded 6% growth — acceptable; flag if it links to a wider Assumptions cell").
 - Award partial marks generously when structural approach is correct but exact numbers differ — the goal is teaching, not penalising.
 - Discount convention: mid-year for explicit FCFs, end-of-year for TV. The template uses days-based discounting via columns I66:S66 — accept either approach.

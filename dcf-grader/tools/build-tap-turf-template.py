@@ -172,7 +172,8 @@ def main():
     params = {
         "wacc": dcf.WACC,
         "perp_growth": dcf.PERP_GROWTH,
-        "exit_multiple": round(valuation["implied_exit_multiple_from_perp"], 2),
+        "exit_multiple": dcf.EXIT_MULTIPLE,
+        "comps": dcf.COMPS,
     }
 
     sinks = {name: CellSink() for name in SHEET_FILE}

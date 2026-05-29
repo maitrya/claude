@@ -26,7 +26,7 @@ CAPEX_PCT_REV = 0.03                       # 2% maint + 1% step-up
 WC_PCT_REV = 0.015                         # 1.5% outflow of revenue
 OTHER_CF = 0.0
 EXCEPTIONALS = 0.0
-TAX_RATE = 0.19                            # template Y29 hint: same as FY21 (effective ~18-19%)
+TAX_RATE = 0.19                            # effective tax rate (per operator)
 
 # --- WACC build (CAPM with public-comp peer beta) ---------------------------
 # Tap & Turf is private. We unlever betas from listed comps, average, then
@@ -36,14 +36,22 @@ RISK_FREE = 0.0425        # AU 10-yr government bond yield, mid-2026
 ERP = 0.06                # Australian equity risk premium (Damodaran)
 SPECIFIC_RISK = 0.015     # Private illiquidity + venue concentration (top-3 = 55% of rev)
 
-# Comparable set — levered beta and D/E from public filings / Bloomberg-style sources
+# Comparable set — levered beta and D/E (for WACC) plus trading EV/EBITDA (for the
+# exit-multiple terminal value). Same peer set for both, per operator instruction.
 COMPS = [
-    {"name": "Endeavour Group",            "ticker": "EDV.AX",  "lev_beta": 0.85, "de": 0.35},
-    {"name": "Coca-Cola Europacific",      "ticker": "CCEP",    "lev_beta": 0.90, "de": 0.50},
-    {"name": "Compass Group",              "ticker": "CPG.L",   "lev_beta": 0.95, "de": 0.30},
-    {"name": "Aramark",                    "ticker": "ARMK",    "lev_beta": 1.10, "de": 0.80},
-    {"name": "Aristocrat Leisure",         "ticker": "ALL.AX",  "lev_beta": 0.95, "de": 0.15},
+    {"name": "Endeavour Group",       "ticker": "EDV.AX", "lev_beta": 0.85, "de": 0.35, "ev_ebitda": 8.0},
+    {"name": "Coca-Cola Europacific", "ticker": "CCEP",   "lev_beta": 0.90, "de": 0.50, "ev_ebitda": 9.5},
+    {"name": "Compass Group",         "ticker": "CPG.L",  "lev_beta": 0.95, "de": 0.30, "ev_ebitda": 13.0},
+    {"name": "Aramark",               "ticker": "ARMK",   "lev_beta": 1.10, "de": 0.80, "ev_ebitda": 10.5},
+    {"name": "Aristocrat Leisure",    "ticker": "ALL.AX", "lev_beta": 0.95, "de": 0.15, "ev_ebitda": 13.0},
 ]
+
+
+def exit_multiple_median() -> float:
+    vals = sorted(c["ev_ebitda"] for c in COMPS)
+    n = len(vals)
+    mid = n // 2
+    return vals[mid] if n % 2 else (vals[mid - 1] + vals[mid]) / 2
 
 # Target capital structure — the business runs NET CASH and is asset-light by design,
 # with no debt facilities mentioned in the brief. We therefore value it on an
@@ -87,7 +95,7 @@ def build_wacc() -> dict:
 
 # DCF inputs (WACC overridden after CAPM build below)
 PERP_GROWTH = 0.025
-EXIT_MULTIPLE = 8.0
+EXIT_MULTIPLE = exit_multiple_median()     # median trading EV/EBITDA of the peer set
 NET_DEBT = 0.0                             # cash-free / debt-free deal basis → equity = EV
 WACC = build_wacc()["wacc"]
 
@@ -214,16 +222,22 @@ def main() -> None:
         print(f"{label:<10}" + "".join(fmt(r[key]) for r in rows))
 
     val = discount(rows)
-    print("\nValuation — PERPETUITY GROWTH (primary, no comps for an exit multiple) ($m)")
-    print(f"  PV of FCF                       {val['pv_fcf']:>10,.1f}")
-    print(f"  TV (perpetuity, g={PERP_GROWTH:.1%})        {val['tv_perp']:>10,.1f}")
-    print(f"  PV of TV (perpetuity)           {val['pv_tv_perp']:>10,.1f}")
-    print(f"  Enterprise value               {val['ev_perp']:>10,.1f}")
-    print(f"  Equity value (= EV, debt-free)  {val['equity_perp']:>10,.1f}")
+    print(f"\nExit multiple (median peer EV/EBITDA): {EXIT_MULTIPLE:.1f}x")
+    print("\nValuation ($m) — two methods")
+    print(f"  PV of FCF (both)                {val['pv_fcf']:>10,.1f}")
+    print(f"  --- Perpetuity growth (g={PERP_GROWTH:.1%}) ---")
+    print(f"  TV (perpetuity)                 {val['tv_perp']:>10,.1f}")
+    print(f"  PV of TV                        {val['pv_tv_perp']:>10,.1f}")
+    print(f"  Enterprise value (perpetuity)   {val['ev_perp']:>10,.1f}")
+    print(f"  Equity (= EV, debt-free)        {val['equity_perp']:>10,.1f}")
+    print(f"  --- Exit multiple ({EXIT_MULTIPLE:.1f}x peer median) ---")
+    print(f"  TV (exit multiple)              {val['tv_mult']:>10,.1f}")
+    print(f"  PV of TV                        {val['pv_tv_mult']:>10,.1f}")
+    print(f"  Enterprise value (multiple)     {val['ev_mult']:>10,.1f}")
+    print(f"  Equity (= EV, debt-free)        {val['equity_mult']:>10,.1f}")
     print()
-    print("  Reasonableness check (NOT an independent method):")
-    print(f"   Implied EV / LFY EBITDA        {val['ev_perp']/HISTORICAL['FY25']['ebitda_clean']:>10,.2f}x")
-    print(f"   Implied exit multiple (TV/FY31 EBITDA){val['implied_exit_multiple_from_perp']:>6,.2f}x")
+    print(f"  Implied EV / LFY EBITDA (perp)  {val['ev_perp']/HISTORICAL['FY25']['ebitda_clean']:>10,.2f}x")
+    print(f"  Implied exit mult from perp     {val['implied_exit_multiple_from_perp']:>10,.2f}x")
 
     print("\nEnterprise value sensitivity — WACC × perpetuity growth ($m)")
     waccs = [0.08, 0.09, 0.10, 0.11, 0.12]
