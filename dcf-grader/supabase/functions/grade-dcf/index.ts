@@ -34,95 +34,113 @@ const json = (body: unknown, status = 200) => new Response(JSON.stringify(body),
 const RUBRIC = `
 # DCF Grading Rubric (100 points total)
 
-## P&L Build (40 points) — assesses the "P&L" tab
-- Revenue assumptions dynamically driven from Assumptions tab; no hardcoded revenue in P&L (10)
+Layout: 3 logical sections must be present (Assumptions / P&L-like /
+Valuation-like). Banker-style multi-tab layouts are accepted (e.g.
+'Assumptions' + 'Company fin forecasts' + 'Financials' + 'DCF input' +
+'DCF output'). Tab naming is flexible — only deduct if a section is
+missing entirely. Reference whichever tab the candidate uses when
+commenting.
+
+## P&L Build (40 points)
+- Revenue dynamically driven from Assumptions; no hardcoded revenue in the P&L section (10)
 - Cost line items correctly categorised + linked (10)
 - EBITDA correctly derived, no manual overrides (8)
 - D&A correctly treated, sourced from Assumptions, flows to EBIT (6)
 - Key P&L outputs match model answer within ±5% (6)
 
-## WACC (20 points) — assesses the "Assumptions" tab
+## WACC (20 points)
 - Cost of equity via CAPM with rf, β, ERP correctly sourced (6)
 - Cost of debt correctly specified and tax-effected (4)
 - Capital structure weights sum to 100% (4)
 - Final WACC correctly assembled, no hardcodes (4)
 - WACC output matches model answer within ±50bps (2)
 
-## Valuation Calculation (20 points) — assesses the "Valuation Calculation" tab
+## Valuation Calculation (20 points)
 - FCF correctly derived from P&L (D&A back, capex out, ΔWC) (5)
 - Discount factors correctly calculated and applied (4)
-- Terminal value correctly calculated, inputs from Assumptions (4)
+- Terminal value correctly calculated (Gordon or exit multiple), inputs from Assumptions (4)
 - Enterprise value correctly assembled (4)
 - Equity bridge handles net debt and adjustments (3)
 
-## Formatting & Model Layout (20 points) — all tabs
+## Formatting & Model Layout (20 points)
 - Hardcoded inputs in blue font (6)
 - Formula cells in black font (4)
-- Formulas dynamic from Assumptions, no hardcodes embedded in formula cells in P&L / Valuation tabs (4)
-- Exactly 3 tabs named "P&L", "Valuation Calculation", "Assumptions"; no extra substantive tabs (4)
+- Formulas dynamic from Assumptions — no hardcodes embedded in formula cells in P&L / Valuation sections (4)
+- 3 logical sections present (Assumptions / P&L-like / Valuation-like); banker-style naming accepted, only deduct if a section is missing (4)
 - Layout clean — labelled sections, consistent structure, no merged cells blocking formulas (2)
 
 ## Commentary requirements
-- Reference SPECIFIC CELLS when flagging issues (e.g. "Cell D14 on P&L tab")
+- Reference SPECIFIC CELLS when flagging issues (e.g. "Cell D14 on the P&L tab")
 - Be ACTIONABLE — say what to fix
-- If you cannot assess something (missing tab, parsing failure), say so explicitly
+- If you cannot assess something (missing section, parsing failure), say so explicitly and award partial marks
 - Use whole numbers for scores
 `;
 
-// ─── Model answer (Happy Hour Co reference build) ──────────────────────────
-// Update this when the case study changes. Source: nba-happy-hour-v2.xlsx
+// ─── Model answer (Tap & Turf Holdings Pty Ltd reference build) ─────────────
+// Source: dcf-grader/tools/tap-turf-dcf.py → dcf-grader/config/tap-turf-model-answer.md
+// Refresh when real comp set EV/EBITDA and WACC inputs land.
 const MODEL_ANSWER = `
-## Case study: Happy Hour Co (NBA-listed hospitality)
-- Transaction date: 31 March 2020
-- Last historical FYE: 30 March 2019
-- Forecast horizon: 10 years (FY20 stub → FY30), AUD millions
+## Case study: Tap & Turf Holdings Pty Ltd (AU stadium beverage concessions)
+- Transaction date: 31 March 2026 (FY26)
+- Last historical FYE: 31 March 2025 (FY25)
+- Forecast horizon: 6 years (FY26 → FY31), AUD millions
+- Capital structure: all-equity (net cash, asset-light); deal struck cash-free / debt-free → EV = equity value
+
+## Driver assumptions (Assumptions tab)
+- Revenue growth: 6.0% p.a. flat (CFO midpoint of 5–7%)
+- EBITDA margin: 8.72% flat (FY24–25 clean average)
+- D&A / revenue: 3.80% (FY25 ratio)
+- Capex / revenue: 3.00% (2% maintenance + 1% step-up, full horizon)
+- Change in WC / revenue: 1.50% OUTFLOW (not an inflow)
+- Effective tax rate: 19%
 
 ## Expected P&L outputs (±5% acceptable, driven from Assumptions tab)
 | Year | Revenue | EBITDA | EBITDA margin | D&A | EBIT |
-| FY20 | 1,149 | 94.1 | 8.2% | (36.1) | 58.0 |
-| FY21 | 1,256 | 92.6 | 7.4% | (40.5) | 52.2 |
-| FY25 | 1,471 | 130.5 | 8.9% | (53.6) | 76.9 |
-| FY30 | 1,577 | 142.0 | 9.0% | (47.5) | 94.5 |
+| FY26 | 1,529 | 133.3 | 8.72% | (58.1) | 75.2 |
+| FY27 | 1,621 | 141.3 | 8.72% | (61.6) | 79.7 |
+| FY28 | 1,718 | 149.8 | 8.72% | (65.3) | 84.5 |
+| FY29 | 1,821 | 158.8 | 8.72% | (69.2) | 89.6 |
+| FY30 | 1,931 | 168.3 | 8.72% | (73.4) | 95.0 |
+| FY31 | 2,046 | 178.4 | 8.72% | (77.8) | 100.7 |
 
-Drivers expected on Assumptions tab:
-- Revenue growth: 9.3% → 7.8% → 6.9% → -0.3% → 2.0% declining to 1.0% terminal
-- EBITDA margin ramps 7.4% → 9.0% over forecast period
-- Capex: $50m flat from FY21
-- Tax rate: 17% (forecast); 19% in FY20 actual
+## Expected WACC (±100bps; candidates build CAPM from given inputs)
+- Risk-free rate (AU 10Y): 4.25%
+- Equity risk premium: 6.00%
+- Comparable beta peer set (unlevered β median ≈ 0.72): Endeavour Group, Coca-Cola Europacific, Compass Group, Aramark, Aristocrat Leisure
+- Specific risk premium: 1.50% (venue concentration + private illiquidity)
+- All-equity capital structure (net cash) → WACC = cost of equity ≈ 10.05%
 
-## Expected WACC
-- WACC used in DCF: 8.5% (acceptable range ±50bps)
-- Perpetuity growth rate: 0.5%
-- Exit EBITDA multiple: 8.5×
-- Tax rate: 17%
-- (Specific CAPM components — rf, β, ERP, Kd — are case-study specific; operator to confirm.)
+## Terminal value — BOTH methods expected
+- Perpetuity growth: 2.5%
+- Exit EBITDA multiple: 10.5× — median trading EV/EBITDA of the SAME peer set used for beta (placeholder figures pending refreshed market data: EDV 8.0, CCEP 9.5, CPG 13.0, ARMK 10.5, ALL 13.0)
 
 ## Expected Valuation outputs (±10% acceptable per methodology)
-| Component | Perpetuity Growth | Exit EBITDA Multiple |
-| Sum of PV(FCF) | $409m | $409m |
-| PV(Terminal Value) | $394m | $579m |
-| Enterprise Value | $803m | $988m |
-| Net debt | ($85m) | ($85m) |
-| Equity Value | $718m | $904m |
-| Implied share price (199m shares) | 361¢ | 454¢ |
+| Component | Perpetuity Growth | Exit EBITDA Multiple (10.5×) |
+| Sum of PV(FCF) | $262m | $262m |
+| PV(Terminal Value) | $514m | $1,055m |
+| Enterprise Value | $776m | $1,317m |
+| Net debt & adjustments | nil | nil |
+| Equity Value (= EV, debt-free) | $776m | $1,317m |
 
-Either methodology is valid. Candidates score full marks if numbers fall within ±10%.
+Both methods are expected. Perpetuity is the more grounded figure for this niche operator; the 10.5× peer median is large-cap and diversified — credit candidates who flag that it likely overstates value and treat the multiple as an upper-bound cross-check.
 
 ## Common pitfalls to flag (cell-specific commentary required)
-- Hardcoded revenue in P&L tab (must drive from Assumptions)
-- Cost of debt not tax-effected in WACC build
-- Book value used for capital structure weights instead of market value
-- Tax rate inconsistency between WACC and FCF (e.g. 17% vs 19%)
+- Hardcoded revenue in the P&L section (must drive from Assumptions)
+- Using the template's yellow "<<<" hints (1% terminal growth, 9% terminal margin, D&A as % of capex) instead of the PDF CFO commentary
+- Treating ΔWC as an inflow (brief explicitly says ~1.5% outflow)
+- Capex stuck at 2% maintenance (brief says combined 3% for the full horizon)
+- EBITDA *post*-exceptionals used as run-rate margin (use clean, recent 2yrs)
+- Forecasting margin expansion (CFO explicitly said it holds flat)
+- Effective tax rate inconsistency between the WACC build and the FCF tax line (19% throughout)
+- Net debt applied in the equity bridge (deal is cash-free/debt-free; EV = equity)
+- Capitalising the WA/SA expansion (brief instructs base case excludes these)
 - Terminal value not discounted back to present
-- Capex not deducted from FCF
-- ΔWC sign convention errors
-- Net debt added rather than deducted in equity bridge
-- Hardcoded EBITDA margin
+- Cost of debt not tax-effected in WACC build
+- Taking the 10.5× exit multiple at face value without flagging the comp-set caveat
 
 ## Grading approach
-- Reference SPECIFIC cells (e.g. "P&L!D14") when flagging issues
-- Award partial marks generously when structural approach is correct
-- Goal is teaching candidates, not penalising minor variations
+- Reference SPECIFIC cells (e.g. "P&L!D14" or "DCF input!Q24") when flagging issues
+- Award partial marks generously when the structural approach is correct
 - Currency choice (AUD/USD) doesn't matter; internal consistency does
 `;
 
