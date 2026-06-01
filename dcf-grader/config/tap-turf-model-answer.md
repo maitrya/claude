@@ -53,16 +53,16 @@
 
 The case study brief does not supply CAPM inputs, so the build below uses 2026-vintage AU market data and a public-comp peer beta unlevered/relevered to Tap & Turf's target capital structure.
 
-**Comparable set — unlevered beta**
+**Comparable set — unlevered beta** (Yahoo Finance / stockanalysis.com, June 2026; CCEP D/E and EV/EBITDA estimated, refresh when Cap IQ data available)
 
 | Comparable | Ticker | Lev β | D/E | Unlev β |
 |---|---|---:|---:|---:|
-| Endeavour Group | EDV.AX | 0.85 | 35% | 0.66 |
-| Coca-Cola Europacific | CCEP | 0.90 | 50% | 0.64 |
-| Compass Group | CPG.L | 0.95 | 30% | 0.76 |
-| Aramark | ARMK | 1.10 | 80% | 0.67 |
-| Aristocrat Leisure | ALL.AX | 0.95 | 15% | 0.85 |
-| **Average unlevered β** | | | | **0.72** |
+| Endeavour Group | EDV.AX | 0.41 | 134% | 0.20 |
+| Coca-Cola Europacific | CCEP | 0.35 | 80% | 0.21 |
+| Compass Group | CPG.L | 0.64 | 113% | 0.33 |
+| Aramark | ARMK | 1.20 | 214% | 0.44 |
+| Aristocrat Leisure | ALL.AX | 0.42 | 31% | 0.34 |
+| **Average unlevered β** | | | | **0.30** |
 
 **Capital structure — all-equity.** Tap & Turf runs **net cash** ($84.6m), is asset-light by design, and the brief mentions no debt facilities. The business is therefore valued on an all-equity basis: **WACC = cost of equity**, using the unlevered peer beta directly (no relevering).
 
@@ -70,13 +70,13 @@ The case study brief does not supply CAPM inputs, so the build below uses 2026-v
 
 | Component | Value | Notes |
 |---|---:|---|
-| Unlevered β (peer average) | 0.72 | Used directly — target D/E = 0 |
-| Risk-free rate | 4.25% | AU 10-yr government bond, mid-2026 |
-| Equity risk premium | 6.00% | Damodaran AU |
-| **CAPM cost of equity** | **8.55%** | Rf + β_u × ERP |
+| Unlevered β (peer average) | 0.30 | Used directly — target D/E = 0 |
+| Risk-free rate | 4.90% | AU 10-yr government bond, late May 2026 (RBA F2) |
+| Equity risk premium | 5.50% | KPMG ANZ Valuation Practices Survey MRP |
+| **CAPM cost of equity** | **6.57%** | Rf + β_u × ERP |
 | + Specific risk premium | 1.50% | Top-3 venue concentration (55% rev), illiquidity, contract renewal risk |
-| **Adjusted cost of equity** | **10.05%** | |
-| **WACC (= cost of equity)** | **10.05%** | No debt → no debt weighting |
+| **Adjusted cost of equity** | **8.07%** | |
+| **WACC (= cost of equity)** | **8.07%** | No debt → no debt weighting |
 
 > Note: removing debt lowers beta (0.78 → 0.72, ↓ Ke) but removes the cheap after-tax-debt weighting (↑ WACC) — net, WACC rises slightly vs a levered structure. A buyer who intends to gear the business (e.g. PE, 3–4× EBITDA) would use a lower WACC; flag this as a sensitivity.
 
@@ -84,7 +84,7 @@ The case study brief does not supply CAPM inputs, so the build below uses 2026-v
 |---|---:|
 | Perpetuity growth | 2.5% |
 | Effective tax rate | 19% |
-| Exit EBITDA multiple | 10.5× (peer median) |
+| Exit EBITDA multiple | 12.96× (peer median) |
 
 WACC inputs (risk-free, ERP, beta peer set, specific-risk premium) are provided to candidates in the brief; candidates build CAPM/WACC from them.
 
@@ -95,34 +95,34 @@ WACC inputs (risk-free, ERP, beta peer set, specific-risk premium) are provided 
 
 | Comparable | EV/EBITDA |
 |---|---:|
-| Endeavour Group | 8.0× |
-| Coca-Cola Europacific | 9.5× |
-| Compass Group | 13.0× |
-| Aramark | 10.5× |
-| Aristocrat Leisure | 13.0× |
-| **Median** | **10.5×** |
+| Endeavour Group | 7.64× |
+| Coca-Cola Europacific | 10.00× |
+| Compass Group | 14.15× |
+| Aramark | 12.96× |
+| Aristocrat Leisure | 13.37× |
+| **Median** | **12.96×** |
 
-> **Caveat for grading:** the peer set is large-cap, diversified consumer/leisure names, so the 10.5× multiple sits well above what the perpetuity method implies for a niche, concentration-heavy private operator (~5×). The two methods therefore diverge widely ($776m vs ~$1.32bn). A strong candidate uses the exit-multiple as a cross-check and comments on why the peer multiple likely overstates value for this business.
+> **Caveat for grading:** the peer set is large-cap, diversified consumer/leisure names, so the peer median sits well above what the perpetuity method implies for a niche, concentration-heavy private operator (~6.9× implied). The two methods therefore diverge widely ($1.05bn vs ~$1.73bn). A strong candidate uses the exit-multiple as an upper-bound cross-check and comments on why the peer multiple likely overstates value for this business.
 
 Acceptable WACC range: 9.0–11.0% (±100bps). Candidates who build CAPM from comps and document their peer set deserve full marks even at a different point estimate; candidates who hardcode a number without justification should lose marks. A candidate who relevers to an assumed debt structure should justify why (net-cash business → all-equity is the default).
 
 ## Expected valuation outputs ($m)
 
-| Component | Perpetuity Growth | Exit Multiple (10.5×) |
+| Component | Perpetuity Growth | Exit Multiple (12.96×) |
 |---|---:|---:|
-| Sum of PV(FCF) | 262.2 | 262.2 |
-| Terminal value (undiscounted) | 912.9 | 1,873.7 |
-| PV(Terminal Value) | 514.0 | 1,054.9 |
-| **Enterprise Value** | **776.2** | **1,317.0** |
+| Sum of PV(FCF) | 276.4 | 276.4 |
+| Terminal value (undiscounted) | 1,237.2 | 2,312.6 |
+| PV(Terminal Value) | 776.6 | 1,451.7 |
+| **Enterprise Value** | **1,053.1** | **1,728.1** |
 | Net debt & adjustments | nil (cash-free/debt-free) | nil |
-| **Equity Value** | **776.2** | **1,317.0** |
+| **Equity Value** | **1,053.1** | **1,728.1** |
 
 **Reasonableness checks (not independent methods):**
 
 | Check | Value |
 |---|---:|
-| Implied EV / LFY EBITDA | 6.08× |
-| Implied exit multiple (TV ÷ FY31 EBITDA) | 5.12× |
+| Implied EV / LFY EBITDA | 8.25× |
+| Implied exit multiple (TV ÷ FY31 EBITDA) | 6.93× |
 
 **Acceptable EV range:** ±10%.
 
@@ -136,7 +136,7 @@ The perpetuity method implies ~5–6× LFY EBITDA — modest, consistent with a 
 |---:|---:|---:|---:|---:|---:|
 | 8.0% | 938.5 | 997.1 | 1,066.5 | 1,149.7 | 1,251.3 |
 | 9.0% | 812.0 | 853.7 | 901.7 | 957.7 | 1,023.9 |
-| **10.05% (central)** | ~712 | ~743 | **~776** | ~816 | ~862 |
+| **8.07% (central)** | ~970 | ~1,008 | **~1,053** | ~1,106 | ~1,170 |
 | 10.0% | 715.6 | 746.3 | 781.1 | 820.9 | 866.8 |
 | 11.0% | 639.8 | 663.1 | 689.2 | 718.5 | 751.8 |
 | 12.0% | 578.5 | 596.7 | 616.8 | 639.1 | 664.0 |
@@ -145,7 +145,7 @@ The perpetuity method implies ~5–6× LFY EBITDA — modest, consistent with a 
 
 - ❌ Using the template's "<<< note" hints (1% terminal growth, 9% terminal margin, D&A as % of capex) instead of the CFO commentary in the case study text
 - ❌ Hardcoded revenue figures in P&L — should drive from the Assumptions driver block
-- ❌ Taking the peer exit multiple (10.5×) at face value without noting it overstates value for a niche operator vs the ~5× perpetuity-implied level
+- ❌ Taking the peer exit multiple (10.5×) at face value without noting it overstates value for a niche operator vs the ~6.9× perpetuity-implied level
 - ❌ Applying net debt to the bridge — the deal is cash-free/debt-free, so EV = equity value
 - ❌ Using EBITDA *post*-exceptionals as the run-rate margin (brief says clean margin, recent 2yrs)
 - ❌ Effective tax rate inconsistency between the WACC build and the FCF tax line (use 19% throughout)

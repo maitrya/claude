@@ -104,25 +104,25 @@ const MODEL_ANSWER = `
 | FY31 | 2,046 | 178.4 | 8.72% | (77.8) | 100.7 |
 
 ## Expected WACC (±100bps; candidates build CAPM from given inputs)
-- Risk-free rate (AU 10Y): 4.25%
-- Equity risk premium: 6.00%
-- Comparable beta peer set (unlevered β median ≈ 0.72): Endeavour Group, Coca-Cola Europacific, Compass Group, Aramark, Aristocrat Leisure
+- Risk-free rate (AU 10Y): 4.90% (RBA, late May 2026)
+- Equity risk premium: 5.50% (KPMG ANZ MRP)
+- Comparable beta peer set: Endeavour Group (β 0.41), CCEP (0.35), Compass (0.64), Aramark (1.20), Aristocrat (0.42); average unlevered β ≈ 0.30
 - Specific risk premium: 1.50% (venue concentration + private illiquidity)
-- All-equity capital structure (net cash) → WACC = cost of equity ≈ 10.05%
+- All-equity capital structure (net cash) → WACC = cost of equity ≈ 8.07%
 
 ## Terminal value — BOTH methods expected
 - Perpetuity growth: 2.5%
-- Exit EBITDA multiple: 10.5× — median trading EV/EBITDA of the SAME peer set used for beta (placeholder figures pending refreshed market data: EDV 8.0, CCEP 9.5, CPG 13.0, ARMK 10.5, ALL 13.0)
+- Exit EBITDA multiple: 12.96× — median trading EV/EBITDA of the SAME peer set (EDV 7.64, CCEP ~10.00, CPG 14.15, ARMK 12.96, ALL 13.37; CCEP partly estimated)
 
 ## Expected Valuation outputs (±10% acceptable per methodology)
-| Component | Perpetuity Growth | Exit EBITDA Multiple (10.5×) |
-| Sum of PV(FCF) | $262m | $262m |
-| PV(Terminal Value) | $514m | $1,055m |
-| Enterprise Value | $776m | $1,317m |
+| Component | Perpetuity Growth | Exit EBITDA Multiple (12.96×) |
+| Sum of PV(FCF) | $276m | $276m |
+| PV(Terminal Value) | $777m | $1,452m |
+| Enterprise Value | $1,053m | $1,728m |
 | Net debt & adjustments | nil | nil |
-| Equity Value (= EV, debt-free) | $776m | $1,317m |
+| Equity Value (= EV, debt-free) | $1,053m | $1,728m |
 
-Both methods are expected. Perpetuity is the more grounded figure for this niche operator; the 10.5× peer median is large-cap and diversified — credit candidates who flag that it likely overstates value and treat the multiple as an upper-bound cross-check.
+Both methods are expected. Perpetuity is the more grounded figure for this niche operator; the 12.96× peer median is large-cap and diversified — credit candidates who flag that it likely overstates value and treat the multiple as an upper-bound cross-check.
 
 ## Common pitfalls to flag (cell-specific commentary required)
 - Hardcoded revenue in the P&L section (must drive from Assumptions)

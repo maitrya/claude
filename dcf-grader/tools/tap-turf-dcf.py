@@ -32,18 +32,20 @@ TAX_RATE = 0.19                            # effective tax rate (per operator)
 # Tap & Turf is private. We unlever betas from listed comps, average, then
 # relever at the target capital structure.
 
-RISK_FREE = 0.0425        # AU 10-yr government bond yield, mid-2026
-ERP = 0.06                # Australian equity risk premium (Damodaran)
+RISK_FREE = 0.049         # AU 10-yr government bond yield, late May 2026 (RBA F2 / Trading Economics)
+ERP = 0.055               # KPMG ANZ Valuation Practices Survey MRP (preferred over Damodaran 4.23%)
 SPECIFIC_RISK = 0.015     # Private illiquidity + venue concentration (top-3 = 55% of rev)
 
 # Comparable set — levered beta and D/E (for WACC) plus trading EV/EBITDA (for the
 # exit-multiple terminal value). Same peer set for both, per operator instruction.
+# Source: Yahoo Finance / stockanalysis.com via web search, June 2026. CCEP D/E and
+# EV/EBITDA marked (est) — refresh when Bloomberg / Cap IQ figures land.
 COMPS = [
-    {"name": "Endeavour Group",       "ticker": "EDV.AX", "lev_beta": 0.85, "de": 0.35, "ev_ebitda": 8.0},
-    {"name": "Coca-Cola Europacific", "ticker": "CCEP",   "lev_beta": 0.90, "de": 0.50, "ev_ebitda": 9.5},
-    {"name": "Compass Group",         "ticker": "CPG.L",  "lev_beta": 0.95, "de": 0.30, "ev_ebitda": 13.0},
-    {"name": "Aramark",               "ticker": "ARMK",   "lev_beta": 1.10, "de": 0.80, "ev_ebitda": 10.5},
-    {"name": "Aristocrat Leisure",    "ticker": "ALL.AX", "lev_beta": 0.95, "de": 0.15, "ev_ebitda": 13.0},
+    {"name": "Endeavour Group",       "ticker": "EDV.AX", "lev_beta": 0.41, "de": 1.34, "ev_ebitda": 7.64},
+    {"name": "Coca-Cola Europacific", "ticker": "CCEP",   "lev_beta": 0.35, "de": 0.80, "ev_ebitda": 10.00},
+    {"name": "Compass Group",         "ticker": "CPG.L",  "lev_beta": 0.64, "de": 1.13, "ev_ebitda": 14.15},
+    {"name": "Aramark",               "ticker": "ARMK",   "lev_beta": 1.20, "de": 2.14, "ev_ebitda": 12.96},
+    {"name": "Aristocrat Leisure",    "ticker": "ALL.AX", "lev_beta": 0.42, "de": 0.31, "ev_ebitda": 13.37},
 ]
 
 
