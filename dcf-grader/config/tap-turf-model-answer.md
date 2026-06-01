@@ -128,7 +128,7 @@ Acceptable WACC range: 9.0–11.0% (±100bps). Candidates who build CAPM from co
 
 > **Deal basis:** valued cash-free / debt-free, so EV = equity value (no net-debt adjustment). The `Company fin forecasts` tab rolls the net cash position forward (FY25 ≈ $32m → FY31 ≈ $218m) as FCF exceeds the $24m annual dividend — informational only, it does not feed the equity bridge.
 
-The perpetuity method implies ~5–6× LFY EBITDA — modest, consistent with a niche, concentration-heavy private asset. The 10.5× peer-multiple method is materially higher because the comp set is large-cap and diversified; treat perpetuity as the more grounded figure and the exit multiple as an upper-bound cross-check.
+The perpetuity method implies ~8× LFY EBITDA (6.9× implied exit). The 12.96× peer-multiple method is materially higher because the comp set is large-cap and diversified; treat perpetuity as the more grounded figure and the exit multiple as an upper-bound cross-check.
 
 ## Sensitivity (perpetuity method, EV $m)
 
@@ -145,7 +145,7 @@ The perpetuity method implies ~5–6× LFY EBITDA — modest, consistent with a 
 
 - ❌ Using the template's "<<< note" hints (1% terminal growth, 9% terminal margin, D&A as % of capex) instead of the CFO commentary in the case study text
 - ❌ Hardcoded revenue figures in P&L — should drive from the Assumptions driver block
-- ❌ Taking the peer exit multiple (10.5×) at face value without noting it overstates value for a niche operator vs the ~6.9× perpetuity-implied level
+- ❌ Taking the peer exit multiple (12.96×) at face value without noting it overstates value for a niche operator vs the ~6.9× perpetuity-implied level
 - ❌ Applying net debt to the bridge — the deal is cash-free/debt-free, so EV = equity value
 - ❌ Using EBITDA *post*-exceptionals as the run-rate margin (brief says clean margin, recent 2yrs)
 - ❌ Effective tax rate inconsistency between the WACC build and the FCF tax line (use 19% throughout)
@@ -159,7 +159,7 @@ The perpetuity method implies ~5–6× LFY EBITDA — modest, consistent with a 
 ## Notes for the AI grader
 
 - Acceptable EV range: ±10% per method.
-- **Both methods expected:** perpetuity growth (g 2.5%) and exit multiple (10.5× peer median). Perpetuity (~$776m) is the more grounded figure; the exit multiple (~$1.32bn) is an upper-bound cross-check. Credit candidates who flag that the large-cap peer multiple overstates value for a niche operator.
+- **Both methods expected:** perpetuity growth (g 2.5%) and exit multiple (12.96× peer median). Perpetuity (~$1.05bn) is the more grounded figure; the exit multiple (~$1.73bn) is an upper-bound cross-check. Credit candidates who flag that the large-cap peer multiple overstates value for a niche operator.
 - For commentary, reference SPECIFIC cells (e.g. "Financials!Q13 contains hardcoded 6% growth — acceptable; flag if it links to a wider Assumptions cell").
 - Award partial marks generously when structural approach is correct but exact numbers differ — the goal is teaching, not penalising.
 - Discount convention: mid-year for explicit FCFs, end-of-year for TV. The template uses days-based discounting via columns I66:S66 — accept either approach.

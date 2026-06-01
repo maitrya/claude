@@ -136,7 +136,7 @@ Both methods are expected. Perpetuity is the more grounded figure for this niche
 - Capitalising the WA/SA expansion (brief instructs base case excludes these)
 - Terminal value not discounted back to present
 - Cost of debt not tax-effected in WACC build
-- Taking the 10.5× exit multiple at face value without flagging the comp-set caveat
+- Taking the 12.96× exit multiple at face value without flagging the comp-set caveat (large-cap, diversified peers overstate value vs perpetuity-implied ~6.9×)
 
 ## Grading approach
 - Reference SPECIFIC cells (e.g. "P&L!D14" or "DCF input!Q24") when flagging issues
