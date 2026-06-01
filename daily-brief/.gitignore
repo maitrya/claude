@@ -1,0 +1,6 @@
+# Ignore generated briefs and logs — these are local outputs, not source
+output/daily_brief_*.md
+output/cost_log.csv
+output/run_*.log
+# Keep the .gitkeep so the output dir exists on clone
+!output/.gitkeep
