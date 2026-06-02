@@ -228,7 +228,14 @@ class Portfolio:
 
     def save_html(self, file_path: str) -> str:
         """Write a self-contained HTML dashboard (Chart.js via CDN)."""
-        payload = {
+        html = _HTML_TEMPLATE.replace("__DATA__", json.dumps(self.to_payload()))
+        with open(file_path, "w") as f:
+            f.write(html)
+        return file_path
+
+    def to_payload(self) -> Dict[str, object]:
+        """Serializable dict used by the HTML dashboard and the Flask API."""
+        return {
             "name": self.name,
             "totals": {
                 "cost": round(self.total_cost(), 2),
@@ -246,6 +253,8 @@ class Portfolio:
                     "name": h.name,
                     "sector": h.sector,
                     "shares": h.shares,
+                    "cost_basis": h.cost_basis,
+                    "current_price": h.current_price,
                     "cost": round(h.cost(), 2),
                     "value": round(h.value(), 2),
                     "gain": round(h.gain(), 2),
@@ -255,10 +264,6 @@ class Portfolio:
                 for h in self.holdings
             ],
         }
-        html = _HTML_TEMPLATE.replace("__DATA__", json.dumps(payload))
-        with open(file_path, "w") as f:
-            f.write(html)
-        return file_path
 
     # ---- Reporting ----------------------------------------------------------
 

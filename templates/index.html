@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>{{ name }} — Impact Dashboard</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <style>
+    :root {
+      --bg: #0b1220;
+      --panel: #131c30;
+      --panel-2: #1a2340;
+      --text: #e6ecff;
+      --muted: #8fa0c8;
+      --accent: #4ade80;
+      --accent-2: #38bdf8;
+      --danger: #f87171;
+      --border: #243056;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; background: var(--bg); color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, sans-serif; }
+    header { padding: 24px 32px; border-bottom: 1px solid var(--border);
+      display: flex; justify-content: space-between; align-items: center; gap: 16px; }
+    header h1 { margin: 0; font-size: 22px; font-weight: 600; letter-spacing: -0.01em; }
+    header p { margin: 4px 0 0; color: var(--muted); font-size: 13px; }
+    .refresh {
+      background: var(--accent); color: #0b1220; border: 0; padding: 10px 18px;
+      border-radius: 8px; font-weight: 600; cursor: pointer; font-size: 14px;
+      transition: opacity 0.15s;
+    }
+    .refresh:hover { opacity: 0.9; }
+    .refresh:disabled { opacity: 0.5; cursor: wait; }
+    main { padding: 24px 32px 64px; max-width: 1400px; margin: 0 auto; }
+    .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 16px; margin-bottom: 24px; }
+    .kpi { background: var(--panel); border: 1px solid var(--border); border-radius: 12px;
+      padding: 18px 20px; }
+    .kpi .label { color: var(--muted); font-size: 12px; text-transform: uppercase;
+      letter-spacing: 0.06em; }
+    .kpi .value { font-size: 26px; font-weight: 600; margin-top: 6px; letter-spacing: -0.02em; }
+    .kpi .sub { color: var(--muted); font-size: 12px; margin-top: 4px; }
+    .pos { color: var(--accent); }
+    .neg { color: var(--danger); }
+    .grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; margin-bottom: 24px; }
+    @media (max-width: 900px) { .grid { grid-template-columns: 1fr; } }
+    .card { background: var(--panel); border: 1px solid var(--border); border-radius: 12px;
+      padding: 18px 20px; }
+    .card h2 { margin: 0 0 12px; font-size: 14px; color: var(--muted);
+      text-transform: uppercase; letter-spacing: 0.06em; font-weight: 500; }
+    .chart-wrap { position: relative; height: 280px; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th, td { padding: 10px 8px; text-align: right; border-bottom: 1px solid var(--border); }
+    th:first-child, td:first-child, th:nth-child(2), td:nth-child(2),
+    th:nth-child(3), td:nth-child(3) { text-align: left; }
+    th { color: var(--muted); font-weight: 500; text-transform: uppercase;
+      font-size: 11px; letter-spacing: 0.06em; cursor: pointer; user-select: none; }
+    th:hover { color: var(--text); }
+    tbody tr:hover { background: var(--panel-2); }
+    .ticker { font-weight: 600; color: var(--accent-2); }
+    .toast { position: fixed; bottom: 24px; right: 24px; background: var(--panel-2);
+      border: 1px solid var(--border); padding: 12px 18px; border-radius: 8px;
+      opacity: 0; transform: translateY(8px); transition: all 0.2s; pointer-events: none; }
+    .toast.show { opacity: 1; transform: translateY(0); }
+    .impact-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+    .impact-row { padding: 10px 0; border-bottom: 1px solid var(--border); }
+    .impact-row:last-child { border-bottom: 0; }
+    .impact-row .label { color: var(--muted); font-size: 12px; }
+    .impact-row .value { font-size: 18px; font-weight: 600; margin-top: 2px; }
+    .impact-row .per1k { color: var(--accent-2); font-size: 11px; }
+  </style>
+</head>
+<body>
+  <header>
+    <div>
+      <h1>{{ name }}</h1>
+      <p id="subtitle">Loading…</p>
+    </div>
+    <button id="refresh" class="refresh">Refresh prices</button>
+  </header>
+
+  <main>
+    <section class="kpis" id="kpis"></section>
+
+    <section class="grid">
+      <div class="card">
+        <h2>Sector allocation</h2>
+        <div class="chart-wrap"><canvas id="sectorChart"></canvas></div>
+      </div>
+      <div class="card">
+        <h2>Weighted ESG</h2>
+        <div class="chart-wrap"><canvas id="esgChart"></canvas></div>
+      </div>
+    </section>
+
+    <section class="grid">
+      <div class="card">
+        <h2>Annual impact</h2>
+        <div id="impact" class="impact-grid"></div>
+      </div>
+      <div class="card">
+        <h2>Returns by holding</h2>
+        <div class="chart-wrap"><canvas id="returnsChart"></canvas></div>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Holdings</h2>
+      <table id="holdingsTable">
+        <thead>
+          <tr>
+            <th data-sort="ticker">Ticker</th>
+            <th data-sort="name">Name</th>
+            <th data-sort="sector">Sector</th>
+            <th data-sort="shares">Shares</th>
+            <th data-sort="cost_basis">Cost / sh</th>
+            <th data-sort="current_price">Price</th>
+            <th data-sort="value">Value</th>
+            <th data-sort="gain">P/L</th>
+            <th data-sort="return_pct">Return</th>
+            <th data-sort="esg">ESG</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </section>
+  </main>
+
+  <div id="toast" class="toast"></div>
+
+  <script>
+    const fmtUSD = n => new Intl.NumberFormat("en-US",
+      { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(n);
+    const fmtUSD2 = n => new Intl.NumberFormat("en-US",
+      { style: "currency", currency: "USD", maximumFractionDigits: 2 }).format(n);
+    const fmtPct = n => (n >= 0 ? "+" : "") + n.toFixed(2) + "%";
+    const fmtNum = (n, d = 1) => new Intl.NumberFormat("en-US",
+      { maximumFractionDigits: d }).format(n);
+
+    const charts = {};
+    let lastData = null;
+    let sortKey = "value";
+    let sortDir = -1;
+
+    function signClass(n) { return n >= 0 ? "pos" : "neg"; }
+
+    function renderKPIs(d) {
+      const t = d.totals;
+      const e = d.esg;
+      document.getElementById("kpis").innerHTML = `
+        <div class="kpi">
+          <div class="label">Market value</div>
+          <div class="value">${fmtUSD(t.value)}</div>
+          <div class="sub">Cost ${fmtUSD(t.cost)}</div>
+        </div>
+        <div class="kpi">
+          <div class="label">Unrealized P/L</div>
+          <div class="value ${signClass(t.gain)}">${fmtUSD(t.gain)}</div>
+          <div class="sub ${signClass(t.return_pct)}">${fmtPct(t.return_pct)}</div>
+        </div>
+        <div class="kpi">
+          <div class="label">Weighted ESG</div>
+          <div class="value">${e.ESG.toFixed(1)}</div>
+          <div class="sub">E ${e.E.toFixed(1)} · S ${e.S.toFixed(1)} · G ${e.G.toFixed(1)}</div>
+        </div>
+        <div class="kpi">
+          <div class="label">Holdings</div>
+          <div class="value">${d.holdings.length}</div>
+          <div class="sub">${Object.keys(d.sectors).length} sectors</div>
+        </div>
+      `;
+    }
+
+    function renderSectorChart(d) {
+      const labels = Object.keys(d.sectors);
+      const values = labels.map(k => d.sectors[k]);
+      const colors = ["#4ade80","#38bdf8","#a78bfa","#fbbf24","#f87171",
+                      "#34d399","#fb7185","#60a5fa","#facc15"];
+      if (charts.sector) charts.sector.destroy();
+      charts.sector = new Chart(document.getElementById("sectorChart"), {
+        type: "doughnut",
+        data: { labels, datasets: [{ data: values, backgroundColor: colors,
+          borderColor: "#131c30", borderWidth: 2 }] },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          plugins: {
+            legend: { position: "right", labels: { color: "#e6ecff", font: { size: 11 } } },
+            tooltip: { callbacks: { label: c => `${c.label}: ${c.parsed.toFixed(1)}%` } }
+          }
+        }
+      });
+    }
+
+    function renderESGChart(d) {
+      if (charts.esg) charts.esg.destroy();
+      charts.esg = new Chart(document.getElementById("esgChart"), {
+        type: "radar",
+        data: {
+          labels: ["Environmental", "Social", "Governance"],
+          datasets: [{
+            label: "Weighted score",
+            data: [d.esg.E, d.esg.S, d.esg.G],
+            backgroundColor: "rgba(74, 222, 128, 0.2)",
+            borderColor: "#4ade80", borderWidth: 2, pointBackgroundColor: "#4ade80"
+          }]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          scales: { r: { min: 0, max: 100, ticks: { color: "#8fa0c8", backdropColor: "transparent" },
+            grid: { color: "#243056" }, angleLines: { color: "#243056" },
+            pointLabels: { color: "#e6ecff", font: { size: 12 } } } },
+          plugins: { legend: { display: false } }
+        }
+      });
+    }
+
+    function renderReturnsChart(d) {
+      const sorted = [...d.holdings].sort((a, b) => b.return_pct - a.return_pct);
+      const labels = sorted.map(h => h.ticker);
+      const values = sorted.map(h => h.return_pct);
+      const colors = values.map(v => v >= 0 ? "#4ade80" : "#f87171");
+      if (charts.returns) charts.returns.destroy();
+      charts.returns = new Chart(document.getElementById("returnsChart"), {
+        type: "bar",
+        data: { labels, datasets: [{ data: values, backgroundColor: colors }] },
+        options: {
+          responsive: true, maintainAspectRatio: false, indexAxis: "y",
+          scales: {
+            x: { ticks: { color: "#8fa0c8", callback: v => v + "%" }, grid: { color: "#243056" } },
+            y: { ticks: { color: "#e6ecff" }, grid: { display: false } }
+          },
+          plugins: {
+            legend: { display: false },
+            tooltip: { callbacks: { label: c => fmtPct(c.parsed.x) } }
+          }
+        }
+      });
+    }
+
+    function renderImpact(d) {
+      const items = [
+        ["CO₂e avoided", d.impact.co2e_avoided_t, "t/yr", d.per1k.co2e_avoided_t],
+        ["Clean energy", d.impact.clean_energy_mwh, "MWh/yr", d.per1k.clean_energy_mwh],
+        ["People served", d.impact.people_served, "", d.per1k.people_served],
+        ["Jobs supported", d.impact.jobs_supported, "", d.per1k.jobs_supported],
+      ];
+      document.getElementById("impact").innerHTML = items.map(([label, val, unit, per1k]) => `
+        <div class="impact-row">
+          <div class="label">${label}</div>
+          <div class="value">${fmtNum(val, 1)} <span style="color:#8fa0c8;font-size:12px">${unit}</span></div>
+          <div class="per1k">${fmtNum(per1k, 3)} per $1k</div>
+        </div>
+      `).join("");
+    }
+
+    function renderTable(d) {
+      const sorted = [...d.holdings].sort((a, b) => {
+        const av = a[sortKey], bv = b[sortKey];
+        if (typeof av === "string") return av.localeCompare(bv) * sortDir;
+        return (av - bv) * sortDir;
+      });
+      document.querySelector("#holdingsTable tbody").innerHTML = sorted.map(h => `
+        <tr>
+          <td class="ticker">${h.ticker}</td>
+          <td>${h.name}</td>
+          <td>${h.sector}</td>
+          <td>${fmtNum(h.shares, 2)}</td>
+          <td>${fmtUSD2(h.cost_basis)}</td>
+          <td>${fmtUSD2(h.current_price)}</td>
+          <td>${fmtUSD(h.value)}</td>
+          <td class="${signClass(h.gain)}">${fmtUSD(h.gain)}</td>
+          <td class="${signClass(h.return_pct)}">${fmtPct(h.return_pct)}</td>
+          <td>${h.esg.toFixed(1)}</td>
+        </tr>
+      `).join("");
+    }
+
+    function render(d) {
+      lastData = d;
+      document.getElementById("subtitle").textContent =
+        `${d.holdings.length} holdings · ${fmtUSD(d.totals.value)} market value · updated ${new Date().toLocaleTimeString()}`;
+      renderKPIs(d);
+      renderSectorChart(d);
+      renderESGChart(d);
+      renderReturnsChart(d);
+      renderImpact(d);
+      renderTable(d);
+    }
+
+    function toast(msg) {
+      const t = document.getElementById("toast");
+      t.textContent = msg;
+      t.classList.add("show");
+      setTimeout(() => t.classList.remove("show"), 3000);
+    }
+
+    async function load() {
+      const r = await fetch("/api/portfolio");
+      render(await r.json());
+    }
+
+    async function refresh() {
+      const btn = document.getElementById("refresh");
+      btn.disabled = true;
+      btn.textContent = "Refreshing…";
+      try {
+        const r = await fetch("/api/refresh", { method: "POST" });
+        const data = await r.json();
+        render(data);
+        const n = data.refresh ? data.refresh.updated_count : 0;
+        toast(n > 0
+          ? `Updated ${n} ticker${n === 1 ? "" : "s"} from Yahoo Finance`
+          : "No prices updated — using CSV values");
+      } catch (e) {
+        toast("Refresh failed: " + e.message);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = "Refresh prices";
+      }
+    }
+
+    document.getElementById("refresh").addEventListener("click", refresh);
+    document.querySelectorAll("#holdingsTable th[data-sort]").forEach(th => {
+      th.addEventListener("click", () => {
+        const k = th.dataset.sort;
+        sortDir = (sortKey === k) ? -sortDir : -1;
+        sortKey = k;
+        if (lastData) renderTable(lastData);
+      });
+    });
+
+    load();
+  </script>
+</body>
+</html>
