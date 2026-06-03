@@ -18,7 +18,25 @@ const GEMINI_API_KEY = Deno.env.get('GEMINI_API_KEY') || '';
 const GEMINI_MODEL  = 'gemini-2.0-flash';
 const MAX_FILE_BYTES = 12 * 1024 * 1024; // 12MB hard cap (UI sets 10MB)
 
-const REQUIRED_TABS = ['P&L', 'Valuation Calculation', 'Assumptions'];
+// Logical sections the rubric assumes — at least one match per section is required.
+// Naming is flexible: accept the prescribed 3-tab layout (P&L / Valuation Calculation /
+// Assumptions) OR a banker-style multi-tab layout (Financials / DCF input / DCF output /
+// Company fin forecasts / Assumptions). Only flag a section as missing if NO tab name
+// matches any of its patterns.
+const REQUIRED_SECTIONS: Record<string, RegExp[]> = {
+  'Assumptions': [/^assumptions/i, /^drivers/i, /^inputs/i],
+  'P&L / Forecast': [/p&l/i, /financials?/i, /forecast/i, /income/i],
+  'Valuation': [/valuation/i, /^dcf/i, /\bdcf\b/i],
+};
+
+function findMissingSections(tabNames: string[]): string[] {
+  const trimmed = tabNames.map(n => n.trim());
+  const missing: string[] = [];
+  for (const [section, patterns] of Object.entries(REQUIRED_SECTIONS)) {
+    if (!trimmed.some(name => patterns.some(p => p.test(name)))) missing.push(section);
+  }
+  return missing;
+}
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -192,7 +210,7 @@ async function parseWorkbook(buffer: ArrayBuffer): Promise<{ tabs: ParsedTab[]; 
   await wb.xlsx.load(buffer);
 
   const presentNames = wb.worksheets.map(ws => ws.name.trim());
-  const missingTabs = REQUIRED_TABS.filter(req => !presentNames.some(p => p.toLowerCase() === req.toLowerCase()));
+  const missingTabs = findMissingSections(presentNames);
 
   const tabs: ParsedTab[] = [];
   for (const ws of wb.worksheets) {
@@ -268,7 +286,7 @@ ${candidateId}
 
 ## Important rules
 - Be SPECIFIC and ACTIONABLE in commentary. Reference cell addresses (e.g. "P&L!D14").
-- If a tab is missing, award 0 for the affected component(s) and call it out in the commentary.
+- If a LOGICAL SECTION is missing (Assumptions / P&L-like / Valuation-like), award 0 for the affected component(s) and call it out. Note: banker-style multi-tab layouts (e.g. "DCF input", "DCF output", "Company fin forecasts", "Financials") count toward the P&L/Valuation sections — do NOT penalise tab naming.
 - For formatting: blue = font color starting with "FF0000FF" or RGB blue. Theme colors (e.g. "theme:5") may also be blue depending on theme — if uncertain, mention it.
 - Whole-number scores only. The sum of component scores MUST equal totalScore.
 - Always return all 4 components in the components array, even if a tab is missing (score 0 in that case).`;
