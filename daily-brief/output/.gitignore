@@ -1,0 +1,5 @@
+# Ignore generated briefs and cost log but keep the directory
+*.md
+cost_log.csv
+*.log
+!.gitkeep
