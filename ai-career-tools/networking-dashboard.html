@@ -1,4 +1,4 @@
-<!-- v18: load existing AI catchup flags on mount + ZIP upload + auto-import 2026-05-27 -->
+<!-- v19: await catchup flags before mounting Dashboard so the 🤖 button shows 2026-05-27 -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -2008,12 +2008,13 @@ function App() {
       if (!mounted) return;
       if (data && data.length > 0) {
         setWeekData(data);
-        // Load any pending AI-detected catch-ups so the 🤖 review button appears
-        loadCatchupFlags(u.id).then(flags => {
-          if (!mounted) return;
+        // Load any pending AI-detected catch-ups BEFORE rendering Dashboard
+        // (Dashboard reads initialPendingFlags only on mount, so it must be ready first)
+        try {
+          const flags = await loadCatchupFlags(u.id);
           const pending = (flags || []).filter(f => f.status === 'pending');
-          if (pending.length > 0) setPendingFlags(pending);
-        }).catch(e => console.error('loadCatchupFlags error:', e));
+          if (mounted && pending.length > 0) setPendingFlags(pending);
+        } catch (e) { console.error('loadCatchupFlags error:', e); }
         setScreen('dashboard');
       } else {
         setScreen('upload');
