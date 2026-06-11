@@ -98,7 +98,7 @@ WACC inputs (risk-free, ERP, beta peer set, specific-risk premium) are provided 
 | Endeavour Group | 7.64× |
 | Coca-Cola Europacific | 13.28× |
 | Compass Group | 14.15× |
-| Aramark | 13.28× |
+| Aramark | 12.96× |
 | Aristocrat Leisure | 13.37× |
 | **Median** | **13.28×** |
 
@@ -136,7 +136,7 @@ The perpetuity method implies ~8× LFY EBITDA (7.0× implied exit). The 13.28× 
 |---:|---:|---:|---:|---:|---:|
 | 8.0% | 938.5 | 997.1 | 1,066.5 | 1,149.7 | 1,251.3 |
 | 9.0% | 812.0 | 853.7 | 901.7 | 957.7 | 1,023.9 |
-| **8.03% (central)** | ~970 | ~1,008 | **~1,053** | ~1,106 | ~1,170 |
+| **8.03% (central)** | ~978 | ~1,016 | **~1,060** | ~1,113 | ~1,177 |
 | 10.0% | 715.6 | 746.3 | 781.1 | 820.9 | 866.8 |
 | 11.0% | 639.8 | 663.1 | 689.2 | 718.5 | 751.8 |
 | 12.0% | 578.5 | 596.7 | 616.8 | 639.1 | 664.0 |
