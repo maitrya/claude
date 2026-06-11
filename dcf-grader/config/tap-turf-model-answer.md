@@ -82,7 +82,7 @@ The case study brief does not supply CAPM inputs, so the build below uses 2026-v
 
 | Other DCF inputs | Value |
 |---|---:|
-| Perpetuity growth | 2.5% |
+| Perpetuity growth | 2.5% (IBISWorld central-case long-run industry growth, per brief) |
 | Effective tax rate | 19% |
 | Exit EBITDA multiple | 12.96× (peer median) |
 
@@ -90,7 +90,7 @@ WACC inputs (risk-free, ERP, beta peer set, specific-risk premium) are provided 
 
 **Terminal value — two methods.** Both are presented:
 
-1. **Perpetuity growth (Gordon)** at g = 2.5%.
+1. **Perpetuity growth (Gordon)** at g = 2.5% (case study sources this to IBISWorld's central-case long-run industry growth rate — see the Market & Industry Context section).
 2. **Exit EBITDA multiple** at the **median trading EV/EBITDA of the WACC peer set**:
 
 | Comparable | EV/EBITDA |

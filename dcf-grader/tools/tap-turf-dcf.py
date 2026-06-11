@@ -96,7 +96,7 @@ def build_wacc() -> dict:
 
 
 # DCF inputs (WACC overridden after CAPM build below)
-PERP_GROWTH = 0.025
+PERP_GROWTH = 0.025       # IBISWorld central-case long-run industry growth (case brief v2, 11-Jun-2026)
 EXIT_MULTIPLE = exit_multiple_median()     # median trading EV/EBITDA of the peer set
 NET_DEBT = 0.0                             # cash-free / debt-free deal basis → equity = EV
 WACC = build_wacc()["wacc"]

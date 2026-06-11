@@ -129,7 +129,7 @@ const MODEL_ANSWER = `
 - All-equity capital structure (net cash) → WACC = cost of equity ≈ 8.07%
 
 ## Terminal value — BOTH methods expected
-- Perpetuity growth: 2.5%
+- Perpetuity growth: 2.5% (sourced in the brief to IBISWorld's central-case long-run industry growth rate, post-Olympic moderation paragraph)
 - Exit EBITDA multiple: 12.96× — median trading EV/EBITDA of the SAME peer set (EDV 7.64, CCEP ~10.00, CPG 14.15, ARMK 12.96, ALL 13.37; CCEP partly estimated)
 
 ## Expected Valuation outputs (±10% acceptable per methodology)
@@ -149,6 +149,7 @@ Both methods are expected. Perpetuity is the more grounded figure for this niche
 - Capex stuck at 2% maintenance (brief says combined 3% for the full horizon)
 - EBITDA *post*-exceptionals used as run-rate margin (use clean, recent 2yrs)
 - Forecasting margin expansion (CFO explicitly said it holds flat)
+- Using a terminal growth rate other than ~2.5% without sourcing it (the brief explicitly references IBISWorld's long-run industry growth)
 - Effective tax rate inconsistency between the WACC build and the FCF tax line (19% throughout)
 - Net debt applied in the equity bridge (deal is cash-free/debt-free; EV = equity)
 - Capitalising the WA/SA expansion (brief instructs base case excludes these)
