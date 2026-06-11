@@ -1,4 +1,4 @@
-<!-- v16: Auto-import LinkedIn data via email forwarding 2026-05-25 -->
+<!-- v18: load existing AI catchup flags on mount + ZIP upload + auto-import 2026-05-27 -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -16,6 +16,7 @@
   <script src="https://cdn.jsdelivr.net/npm/react-dom@18/umd/react-dom.production.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
   <script src="https://cdn.plot.ly/plotly-2.32.0.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 
@@ -862,13 +863,49 @@ function UploadScreen({ onData, onSample, user, candidateName }) {
     return { type, name: file.name, rows, count: rows.length };
   };
 
+  // Unzip a LinkedIn export ZIP and return the 3 CSV files as virtual File objects
+  const expandZip = async (zipFile) => {
+    if (!window.JSZip) throw new Error('ZIP support not loaded — please refresh the page.');
+    const zip = await window.JSZip.loadAsync(zipFile);
+    const extracted = [];
+    for (const [name, entry] of Object.entries(zip.files)) {
+      if (entry.dir) continue;
+      if (!name.toLowerCase().endsWith('.csv')) continue;
+      const text = await entry.async('string');
+      const blob = new Blob([text], { type: 'text/csv' });
+      const baseName = name.split('/').pop(); // strip any folder prefix
+      extracted.push(new File([blob], baseName, { type: 'text/csv' }));
+    }
+    return extracted;
+  };
+
   const handleFiles = async (fileList) => {
     setLoading(true);
     const newFiles = { ...files };
     const newErrors = { ...errors };
 
+    // Expand any ZIPs to their inner CSVs first
+    const queue = [];
     for (const file of Array.from(fileList)) {
-      if (!file.name.endsWith('.csv')) { newErrors['_'] = `"${file.name}" is not a CSV file.`; continue; }
+      if (/\.zip$/i.test(file.name)) {
+        try {
+          const csvs = await expandZip(file);
+          if (csvs.length === 0) {
+            newErrors['_'] = `"${file.name}" didn't contain any CSV files — make sure it's the LinkedIn data export ZIP.`;
+            continue;
+          }
+          queue.push(...csvs);
+        } catch (e) {
+          newErrors['_'] = `Couldn't open "${file.name}" as a ZIP: ${e.message}`;
+        }
+      } else if (file.name.toLowerCase().endsWith('.csv')) {
+        queue.push(file);
+      } else {
+        newErrors['_'] = `"${file.name}" is neither a CSV nor a ZIP.`;
+      }
+    }
+
+    for (const file of queue) {
       const result = await processFile(file);
       if (result.error) { newErrors['_'] = result.error; continue; }
       newFiles[result.type] = { name: result.name, rows: result.rows, count: result.count };
@@ -926,7 +963,7 @@ function UploadScreen({ onData, onSample, user, candidateName }) {
 
       {globalDrag && (
         <div style={{ position:'fixed',inset:0,background:'rgba(217,70,239,0.12)',border:'3px solid #ec4899',zIndex:50,display:'flex',alignItems:'center',justifyContent:'center',pointerEvents:'none' }}>
-          <p style={{ color:'#f9a8d4',fontSize:22,fontWeight:800 }}>Drop your CSV files anywhere</p>
+          <p style={{ color:'#f9a8d4',fontSize:22,fontWeight:800 }}>Drop your ZIP or CSV files anywhere</p>
         </div>
       )}
 
@@ -949,14 +986,14 @@ function UploadScreen({ onData, onSample, user, candidateName }) {
         {/* File slots */}
         <div className="glass-card p-5 mb-4">
           <p style={{ color:'rgba(255,255,255,0.5)',fontSize:12,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:12 }}>
-            Drop CSVs below or anywhere on the page
+            Drop the LinkedIn ZIP or CSVs below — anywhere on the page works
           </p>
           <div style={{ display:'flex',flexDirection:'column',gap:8 }}>
             {FILE_SLOTS.map(slot => {
               const loaded = files[slot.key];
               return (
                 <label key={slot.key} className={`file-slot ${loaded?'filled':'empty'} ${!slot.required?'optional':''}`} style={{ cursor:'pointer' }}>
-                  <input type="file" accept=".csv" style={{ display:'none' }} multiple
+                  <input type="file" accept=".csv,.zip" style={{ display:'none' }} multiple
                     onChange={e => handleFiles(e.target.files)} />
                   <div style={{ fontSize:22, flexShrink:0 }}>
                     {loaded ? '✅' : '📄'}
@@ -1003,13 +1040,12 @@ function UploadScreen({ onData, onSample, user, candidateName }) {
 
         {/* How-to */}
         <div className="glass-card-dark p-5">
-          <p style={{ color:'rgba(255,255,255,0.5)',fontSize:12,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:10 }}>How to get your LinkedIn CSVs</p>
+          <p style={{ color:'rgba(255,255,255,0.5)',fontSize:12,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:10 }}>How to get your LinkedIn data</p>
           {[
             'Go to LinkedIn → Settings → Data Privacy → Get a copy of your data',
             'Select Connections, Invitations, Messages — click Request archive',
-            'Wait for the email (up to 10 min), download the ZIP',
-            'Unzip it — you\'ll find Connections.csv, Invitations.csv, messages.csv',
-            'Drag those 3 files onto this page or click each slot above',
+            'Wait for the email (takes ~24h for large exports), then click the download link',
+            'Drag the entire ZIP onto this page — we\'ll auto-extract the 3 CSVs',
           ].map((s,i) => (
             <div key={i} className="flex items-start gap-3" style={{ marginBottom:6 }}>
               <span style={{ color:'#ec4899',fontWeight:800,fontSize:12,flexShrink:0,marginTop:1 }}>{i+1}.</span>
@@ -1972,6 +2008,12 @@ function App() {
       if (!mounted) return;
       if (data && data.length > 0) {
         setWeekData(data);
+        // Load any pending AI-detected catch-ups so the 🤖 review button appears
+        loadCatchupFlags(u.id).then(flags => {
+          if (!mounted) return;
+          const pending = (flags || []).filter(f => f.status === 'pending');
+          if (pending.length > 0) setPendingFlags(pending);
+        }).catch(e => console.error('loadCatchupFlags error:', e));
         setScreen('dashboard');
       } else {
         setScreen('upload');
