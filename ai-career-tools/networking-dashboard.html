@@ -1,4 +1,4 @@
-<!-- v19: await catchup flags before mounting Dashboard so the 🤖 button shows 2026-05-27 -->
+<!-- v20: confirmed catchups persist to networking_weeks.catchups_booked 2026-05-27 -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -1764,19 +1764,38 @@ function Dashboard({ weekData: rawWeekData, onReset, onReload, user, onSignOut, 
     setGoalSaving(false);
   };
 
-  const handleCatchupReviewDone = (confirmed) => {
+  const handleCatchupReviewDone = async (confirmed) => {
     setShowCatchupReview(false);
     setPendingFlags([]);
-    if (confirmed.length > 0) {
-      // Update catchup counts for relevant weeks
-      confirmed.forEach(flag => {
-        if (flag.week_key) {
-          setCatchupOverrides(prev => ({
-            ...prev,
-            [flag.week_key]: (prev[flag.week_key] || 0) + 1,
-          }));
-        }
-      });
+    if (!user?.id) return;
+
+    // Collect the unique weeks impacted by this review session
+    const affectedWeeks = Array.from(new Set(confirmed.map(f => f.week_key).filter(Boolean)));
+    if (affectedWeeks.length === 0) return;
+
+    // For each affected week, fetch the AUTHORITATIVE confirmed count from
+    // catchup_flags (the source of truth — handles prior reviews too) and
+    // UPSERT it into networking_weeks.catchups_booked so it persists and
+    // shows up in cohort analytics / digest emails.
+    for (const weekKey of affectedWeeks) {
+      try {
+        const { count, error } = await supabase
+          .from('catchup_flags')
+          .select('*', { count: 'exact', head: true })
+          .eq('user_id', user.id)
+          .eq('week_key', weekKey)
+          .eq('status', 'confirmed');
+        if (error) throw error;
+        const newCount = count || 0;
+        await supabase
+          .from('networking_weeks')
+          .update({ catchups_booked: newCount })
+          .eq('user_id', user.id)
+          .eq('week_key', weekKey);
+        setCatchupOverrides(prev => ({ ...prev, [weekKey]: newCount }));
+      } catch (e) {
+        console.error('Failed to sync catchups_booked for week', weekKey, e);
+      }
     }
   };
 
