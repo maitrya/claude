@@ -38,11 +38,10 @@ SPECIFIC_RISK = 0.015     # Private illiquidity + venue concentration (top-3 = 5
 
 # Comparable set — levered beta and D/E (for WACC) plus trading EV/EBITDA (for the
 # exit-multiple terminal value). Same peer set for both, per operator instruction.
-# Source: Yahoo Finance / stockanalysis.com via web search, June 2026. CCEP D/E and
-# EV/EBITDA marked (est) — refresh when Bloomberg / Cap IQ figures land.
+# Source: Yahoo Finance / stockanalysis.com via web search, June 2026.
 COMPS = [
     {"name": "Endeavour Group",       "ticker": "EDV.AX", "lev_beta": 0.41, "de": 1.34, "ev_ebitda": 7.64},
-    {"name": "Coca-Cola Europacific", "ticker": "CCEP",   "lev_beta": 0.35, "de": 0.80, "ev_ebitda": 10.00},
+    {"name": "Coca-Cola Europacific", "ticker": "CCEP",   "lev_beta": 0.38, "de": 1.41, "ev_ebitda": 13.28},
     {"name": "Compass Group",         "ticker": "CPG.L",  "lev_beta": 0.64, "de": 1.13, "ev_ebitda": 14.15},
     {"name": "Aramark",               "ticker": "ARMK",   "lev_beta": 1.20, "de": 2.14, "ev_ebitda": 12.96},
     {"name": "Aristocrat Leisure",    "ticker": "ALL.AX", "lev_beta": 0.42, "de": 0.31, "ev_ebitda": 13.37},

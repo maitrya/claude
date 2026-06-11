@@ -53,12 +53,12 @@
 
 The case study brief does not supply CAPM inputs, so the build below uses 2026-vintage AU market data and a public-comp peer beta unlevered/relevered to Tap & Turf's target capital structure.
 
-**Comparable set — unlevered beta** (Yahoo Finance / stockanalysis.com, June 2026; CCEP D/E and EV/EBITDA estimated, refresh when Cap IQ data available)
+**Comparable set — unlevered beta** (Yahoo Finance / stockanalysis.com, June 2026)
 
 | Comparable | Ticker | Lev β | D/E | Unlev β |
 |---|---|---:|---:|---:|
 | Endeavour Group | EDV.AX | 0.41 | 134% | 0.20 |
-| Coca-Cola Europacific | CCEP | 0.35 | 80% | 0.21 |
+| Coca-Cola Europacific | CCEP | 0.38 | 141% | 0.18 |
 | Compass Group | CPG.L | 0.64 | 113% | 0.33 |
 | Aramark | ARMK | 1.20 | 214% | 0.44 |
 | Aristocrat Leisure | ALL.AX | 0.42 | 31% | 0.34 |
@@ -73,10 +73,10 @@ The case study brief does not supply CAPM inputs, so the build below uses 2026-v
 | Unlevered β (peer average) | 0.30 | Used directly — target D/E = 0 |
 | Risk-free rate | 4.90% | AU 10-yr government bond, late May 2026 (RBA F2) |
 | Equity risk premium | 5.50% | KPMG ANZ Valuation Practices Survey MRP |
-| **CAPM cost of equity** | **6.57%** | Rf + β_u × ERP |
+| **CAPM cost of equity** | **6.53%** | Rf + β_u × ERP |
 | + Specific risk premium | 1.50% | Top-3 venue concentration (55% rev), illiquidity, contract renewal risk |
-| **Adjusted cost of equity** | **8.07%** | |
-| **WACC (= cost of equity)** | **8.07%** | No debt → no debt weighting |
+| **Adjusted cost of equity** | **8.03%** | |
+| **WACC (= cost of equity)** | **8.03%** | No debt → no debt weighting |
 
 > Note: removing debt lowers beta (0.78 → 0.72, ↓ Ke) but removes the cheap after-tax-debt weighting (↑ WACC) — net, WACC rises slightly vs a levered structure. A buyer who intends to gear the business (e.g. PE, 3–4× EBITDA) would use a lower WACC; flag this as a sensitivity.
 
@@ -84,7 +84,7 @@ The case study brief does not supply CAPM inputs, so the build below uses 2026-v
 |---|---:|
 | Perpetuity growth | 2.5% (IBISWorld central-case long-run industry growth, per brief) |
 | Effective tax rate | 19% |
-| Exit EBITDA multiple | 12.96× (peer median) |
+| Exit EBITDA multiple | 13.28× (peer median) |
 
 WACC inputs (risk-free, ERP, beta peer set, specific-risk premium) are provided to candidates in the brief; candidates build CAPM/WACC from them.
 
@@ -96,39 +96,39 @@ WACC inputs (risk-free, ERP, beta peer set, specific-risk premium) are provided 
 | Comparable | EV/EBITDA |
 |---|---:|
 | Endeavour Group | 7.64× |
-| Coca-Cola Europacific | 10.00× |
+| Coca-Cola Europacific | 13.28× |
 | Compass Group | 14.15× |
-| Aramark | 12.96× |
+| Aramark | 13.28× |
 | Aristocrat Leisure | 13.37× |
-| **Median** | **12.96×** |
+| **Median** | **13.28×** |
 
-> **Caveat for grading:** the peer set is large-cap, diversified consumer/leisure names, so the peer median sits well above what the perpetuity method implies for a niche, concentration-heavy private operator (~6.9× implied). The two methods therefore diverge widely ($1.05bn vs ~$1.73bn). A strong candidate uses the exit-multiple as an upper-bound cross-check and comments on why the peer multiple likely overstates value for this business.
+> **Caveat for grading:** the peer set is large-cap, diversified consumer/leisure names, so the peer median sits well above what the perpetuity method implies for a niche, concentration-heavy private operator (~7.0× implied). The two methods therefore diverge widely ($1.06bn vs ~$1.77bn). A strong candidate uses the exit-multiple as an upper-bound cross-check and comments on why the peer multiple likely overstates value for this business.
 
 Acceptable WACC range: 9.0–11.0% (±100bps). Candidates who build CAPM from comps and document their peer set deserve full marks even at a different point estimate; candidates who hardcode a number without justification should lose marks. A candidate who relevers to an assumed debt structure should justify why (net-cash business → all-equity is the default).
 
 ## Expected valuation outputs ($m)
 
-| Component | Perpetuity Growth | Exit Multiple (12.96×) |
+| Component | Perpetuity Growth | Exit Multiple (13.28×) |
 |---|---:|---:|
-| Sum of PV(FCF) | 276.4 | 276.4 |
-| Terminal value (undiscounted) | 1,237.2 | 2,312.6 |
-| PV(Terminal Value) | 776.6 | 1,451.7 |
-| **Enterprise Value** | **1,053.1** | **1,728.1** |
+| Sum of PV(FCF) | 277.0 | 277.0 |
+| Terminal value (undiscounted) | 1,243.8 | 2,369.6 |
+| PV(Terminal Value) | 783.5 | 1,490.5 |
+| **Enterprise Value** | **1,060.4** | **1,767.5** |
 | Net debt & adjustments | nil (cash-free/debt-free) | nil |
-| **Equity Value** | **1,053.1** | **1,728.1** |
+| **Equity Value** | **1,060.4** | **1,767.5** |
 
 **Reasonableness checks (not independent methods):**
 
 | Check | Value |
 |---|---:|
-| Implied EV / LFY EBITDA | 8.25× |
-| Implied exit multiple (TV ÷ FY31 EBITDA) | 6.93× |
+| Implied EV / LFY EBITDA | 8.31× |
+| Implied exit multiple (TV ÷ FY31 EBITDA) | 6.97× |
 
 **Acceptable EV range:** ±10%.
 
 > **Deal basis:** valued cash-free / debt-free, so EV = equity value (no net-debt adjustment). The `Company fin forecasts` tab rolls the net cash position forward (FY25 ≈ $32m → FY31 ≈ $218m) as FCF exceeds the $24m annual dividend — informational only, it does not feed the equity bridge.
 
-The perpetuity method implies ~8× LFY EBITDA (6.9× implied exit). The 12.96× peer-multiple method is materially higher because the comp set is large-cap and diversified; treat perpetuity as the more grounded figure and the exit multiple as an upper-bound cross-check.
+The perpetuity method implies ~8× LFY EBITDA (7.0× implied exit). The 13.28× peer-multiple method is materially higher because the comp set is large-cap and diversified; treat perpetuity as the more grounded figure and the exit multiple as an upper-bound cross-check.
 
 ## Sensitivity (perpetuity method, EV $m)
 
@@ -136,7 +136,7 @@ The perpetuity method implies ~8× LFY EBITDA (6.9× implied exit). The 12.96× 
 |---:|---:|---:|---:|---:|---:|
 | 8.0% | 938.5 | 997.1 | 1,066.5 | 1,149.7 | 1,251.3 |
 | 9.0% | 812.0 | 853.7 | 901.7 | 957.7 | 1,023.9 |
-| **8.07% (central)** | ~970 | ~1,008 | **~1,053** | ~1,106 | ~1,170 |
+| **8.03% (central)** | ~970 | ~1,008 | **~1,053** | ~1,106 | ~1,170 |
 | 10.0% | 715.6 | 746.3 | 781.1 | 820.9 | 866.8 |
 | 11.0% | 639.8 | 663.1 | 689.2 | 718.5 | 751.8 |
 | 12.0% | 578.5 | 596.7 | 616.8 | 639.1 | 664.0 |
@@ -145,7 +145,7 @@ The perpetuity method implies ~8× LFY EBITDA (6.9× implied exit). The 12.96× 
 
 - ❌ Using the template's "<<< note" hints (1% terminal growth, 9% terminal margin, D&A as % of capex) instead of the CFO commentary in the case study text
 - ❌ Hardcoded revenue figures in P&L — should drive from the Assumptions driver block
-- ❌ Taking the peer exit multiple (12.96×) at face value without noting it overstates value for a niche operator vs the ~6.9× perpetuity-implied level
+- ❌ Taking the peer exit multiple (13.28×) at face value without noting it overstates value for a niche operator vs the ~7.0× perpetuity-implied level
 - ❌ Applying net debt to the bridge — the deal is cash-free/debt-free, so EV = equity value
 - ❌ Using EBITDA *post*-exceptionals as the run-rate margin (brief says clean margin, recent 2yrs)
 - ❌ Effective tax rate inconsistency between the WACC build and the FCF tax line (use 19% throughout)
@@ -159,7 +159,7 @@ The perpetuity method implies ~8× LFY EBITDA (6.9× implied exit). The 12.96× 
 ## Notes for the AI grader
 
 - Acceptable EV range: ±10% per method.
-- **Both methods expected:** perpetuity growth (g 2.5%) and exit multiple (12.96× peer median). Perpetuity (~$1.05bn) is the more grounded figure; the exit multiple (~$1.73bn) is an upper-bound cross-check. Credit candidates who flag that the large-cap peer multiple overstates value for a niche operator.
+- **Both methods expected:** perpetuity growth (g 2.5%) and exit multiple (13.28× peer median). Perpetuity (~$1.06bn) is the more grounded figure; the exit multiple (~$1.77bn) is an upper-bound cross-check. Credit candidates who flag that the large-cap peer multiple overstates value for a niche operator.
 - For commentary, reference SPECIFIC cells (e.g. "Financials!Q13 contains hardcoded 6% growth — acceptable; flag if it links to a wider Assumptions cell").
 - Award partial marks generously when structural approach is correct but exact numbers differ — the goal is teaching, not penalising.
 - Discount convention: mid-year for explicit FCFs, end-of-year for TV. The template uses days-based discounting via columns I66:S66 — accept either approach.
