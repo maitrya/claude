@@ -1,0 +1,3 @@
+# Ignore generated brief files and cost log; keep the directory tracked.
+daily_brief_*.md
+cost_log.csv
