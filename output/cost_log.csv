@@ -1,0 +1,2 @@
+date,agent_1_tokens,agent_2_tokens,agent_3_tokens,total_tokens,estimated_cost_usd,notes
+2026-06-15,671000,18380,152623,841003,4.62,"Agent 1 includes ~50 sub-agent searches; many rate-limited. Model: claude-sonnet-4-6 ($3/M in, $15/M out, ~$5.50/M blended)"
