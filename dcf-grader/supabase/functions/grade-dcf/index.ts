@@ -13,6 +13,16 @@ import { createClient } from 'jsr:@supabase/supabase-js@2';
 import ExcelJS from 'npm:exceljs@4.4.0';
 
 const GEMINI_API_KEY = Deno.env.get('GEMINI_API_KEY') || '';
+const SUPABASE_URL = Deno.env.get('SUPABASE_URL') || '';
+const SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '';
+const sb = SUPABASE_URL && SERVICE_ROLE_KEY ? createClient(SUPABASE_URL, SERVICE_ROLE_KEY) : null;
+
+async function logSubmission(row: Record<string, unknown>): Promise<void> {
+  if (!sb) return;
+  const { error } = await sb.from('dcf_submissions').insert(row);
+  if (error) console.error('[grade-dcf] audit insert failed:', error.message);
+}
+
 // gemini-2.0-flash is free, fast, supports structured JSON output via responseSchema.
 // Upgrade to gemini-2.5-flash or gemini-1.5-pro for better quality if needed (still free tier).
 const GEMINI_MODEL  = 'gemini-2.0-flash';
@@ -357,12 +367,22 @@ Deno.serve(async (req: Request) => {
       parsed = await parseWorkbook(buffer);
     } catch (e) {
       console.error('[grade-dcf] parse error:', e);
+      await logSubmission({
+        candidate_id: candidateId, file_name: file.name, file_size: file.size,
+        error: `parse: ${(e as Error).message ?? 'unknown'}`,
+        processing_ms: Date.now() - t0,
+      });
       return json({ error: 'Could not parse the Excel file. Make sure it is a valid .xlsx file (not .xls or password-protected).' }, 400);
     }
 
     console.log(`[grade-dcf] parsed tabs=${parsed.tabs.map(t => t.name).join(', ')} missing=${parsed.missingTabs.join(', ')||'none'}`);
 
     if (parsed.tabs.length === 0) {
+      await logSubmission({
+        candidate_id: candidateId, file_name: file.name, file_size: file.size,
+        error: 'no readable sheets',
+        processing_ms: Date.now() - t0,
+      });
       return json({ error: 'The workbook has no readable sheets.' }, 400);
     }
 
@@ -374,6 +394,13 @@ Deno.serve(async (req: Request) => {
       report = await callGemini(context, candidateId);
     } catch (e) {
       console.error('[grade-dcf] AI error:', e);
+      await logSubmission({
+        candidate_id: candidateId, file_name: file.name, file_size: file.size,
+        error: `ai: ${(e as Error).message ?? 'unknown'}`,
+        processing_ms: Date.now() - t0,
+        parsed_tabs: parsed.tabs.map(t => t.name),
+        missing_tabs: parsed.missingTabs,
+      });
       return json({ error: 'AI grading service is currently unavailable. Please try again in a minute.' }, 503);
     }
 
@@ -388,6 +415,17 @@ Deno.serve(async (req: Request) => {
       missing_tabs: parsed.missingTabs,
       parsed_tabs: parsed.tabs.map(t => ({ name: t.name, cellCount: t.cells.length })),
     };
+
+    await logSubmission({
+      candidate_id: candidateId,
+      file_name: file.name,
+      file_size: file.size,
+      total_score: report.totalScore,
+      report,
+      processing_ms: Date.now() - t0,
+      parsed_tabs: parsed.tabs.map(t => t.name),
+      missing_tabs: parsed.missingTabs,
+    });
 
     console.log(`[grade-dcf] done in ${Date.now()-t0}ms score=${report.totalScore}/100`);
     return json(report);
