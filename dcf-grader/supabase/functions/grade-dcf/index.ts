@@ -1,4 +1,4 @@
-// DCF Model Reviewer — Edge Function v25
+// DCF Model Reviewer — Edge Function v26
 // Receives a JSON payload from the browser frontend (which has already
 // parsed the .xlsx with ExcelJS), runs Claude Haiku against the rubric +
 // model answer, falls back to Gemini if Claude errors, and writes an
@@ -190,10 +190,22 @@ ${candidateId}
 - If a LOGICAL SECTION is missing (see layout note), award 0 for the affected component(s) and call it out.
 - For formatting: blue = font color starting with "FF0000FF" or RGB blue. Theme colors may also be blue — if uncertain, mention it.
 - Whole-number scores only. The sum of component scores MUST equal totalScore.
+- For EVERY component, score MUST satisfy 0 ≤ score ≤ outOf. NEVER award more than the component's outOf cap, even for "structural completeness" or "partial credit". The maximum credit possible is the outOf value.
 - Always return all 4 components in the components array, even if a tab is missing (score 0 in that case).`;
 }
 
 const USER_PROMPT_PREFIX = 'Here is the parsed workbook content. Grade it strictly against the rubric.\n\n';
+
+// Cheap pre-flight: catch obvious blank-template uploads before we burn an API call.
+// Detects sheets riddled with #DIV/0! / #REF! / #NAME? — the unmistakable signature of
+// a template whose Assumptions tab was never populated (every downstream formula errors).
+function detectBlankTemplate(context: string): string | null {
+  const errorMatches = context.match(/v:#(DIV\/0|REF|NAME|VALUE|NULL|N\/A|NUM)/g);
+  if (errorMatches && errorMatches.length > 5) {
+    return `This workbook contains ${errorMatches.length} broken formula references (#DIV/0!, #REF!, etc.) — it looks like the candidate template with missing Assumptions inputs, not a completed model. Populate the Assumptions tab so downstream formulas resolve, then re-upload.`;
+  }
+  return null;
+}
 
 async function callClaude(workbookContext: string, candidateId: string, matched: Record<string, string>, missingCategories: string[]): Promise<any> {
   if (!ANTHROPIC_API_KEY) throw new Error('ANTHROPIC_API_KEY not set');
@@ -319,6 +331,20 @@ Deno.serve(async (req: Request) => {
       return json({ error: `Context too large (${context.length} chars, max ${MAX_CONTEXT_CHARS}).` }, 400);
     }
 
+    const templateWarning = detectBlankTemplate(context);
+    if (templateWarning) {
+      console.log(`[grade-dcf] blank-template detected file=${fileName}`);
+      await logSubmission({
+        candidate_id: candidateId,
+        file_name: fileName,
+        error: `template: ${templateWarning}`,
+        processing_ms: Date.now() - t0,
+        parsed_tabs: allSheets,
+        missing_tabs: missingCategories,
+      });
+      return json({ error: templateWarning }, 400);
+    }
+
     console.log(`[grade-dcf] candidate=${candidateId} file=${fileName} ctx=${context.length}b matched=${Object.keys(matched).length}/3 missing=${missingCategories.join(',')||'none'}`);
 
     let report: any;
@@ -339,8 +365,15 @@ Deno.serve(async (req: Request) => {
       return json({ error: 'AI grading service is currently unavailable. Please try again in a minute.' }, 503);
     }
 
-    const summed = (report.components || []).reduce((s: number, c: any) => s + (Number(c.score) || 0), 0);
-    if (Math.abs(summed - report.totalScore) > 1) report.totalScore = summed;
+    // Clamp each component score to [0, outOf]. The schema doesn't enforce this and
+    // models occasionally award "partial credit" above the cap (e.g. 28/20 for
+    // "structural completeness"). Rebuild totalScore from the clamped values.
+    for (const c of (report.components || [])) {
+      const raw = Number(c.score) || 0;
+      const cap = Number(c.outOf) || 0;
+      c.score = Math.max(0, Math.min(cap, raw));
+    }
+    report.totalScore = (report.components || []).reduce((s: number, c: any) => s + (Number(c.score) || 0), 0);
 
     report.meta = {
       candidate_id: candidateId,
