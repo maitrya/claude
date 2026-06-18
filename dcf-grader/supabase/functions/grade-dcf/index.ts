@@ -1,4 +1,4 @@
-// DCF Model Reviewer — Edge Function v26
+// DCF Model Reviewer — Edge Function v27
 // Receives a JSON payload from the browser frontend (which has already
 // parsed the .xlsx with ExcelJS), runs Claude Haiku against the rubric +
 // model answer, falls back to Gemini if Claude errors, and writes an
@@ -197,11 +197,13 @@ ${candidateId}
 const USER_PROMPT_PREFIX = 'Here is the parsed workbook content. Grade it strictly against the rubric.\n\n';
 
 // Cheap pre-flight: catch obvious blank-template uploads before we burn an API call.
-// Detects sheets riddled with #DIV/0! / #REF! / #NAME? — the unmistakable signature of
-// a template whose Assumptions tab was never populated (every downstream formula errors).
+// The frontend JSON.stringify's string cell values, so error cells encode as
+// v:"#DIV/0", v:"#REF", etc. (with literal quotes) — match either form.
+// Threshold is low (>= 2) because a completed model should have ZERO broken
+// references; even 2 is a strong signal of unpopulated Assumptions inputs.
 function detectBlankTemplate(context: string): string | null {
-  const errorMatches = context.match(/v:#(DIV\/0|REF|NAME|VALUE|NULL|N\/A|NUM)/g);
-  if (errorMatches && errorMatches.length > 5) {
+  const errorMatches = context.match(/v:"?#(DIV\/0|REF|NAME|VALUE|NULL|N\/A|NUM)/g);
+  if (errorMatches && errorMatches.length >= 2) {
     return `This workbook contains ${errorMatches.length} broken formula references (#DIV/0!, #REF!, etc.) — it looks like the candidate template with missing Assumptions inputs, not a completed model. Populate the Assumptions tab so downstream formulas resolve, then re-upload.`;
   }
   return null;
