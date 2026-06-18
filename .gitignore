@@ -1,3 +1,7 @@
 __pycache__/
 *.pyc
 .DS_Store
+
+# Daily brief outputs (keep cost_log.csv, ignore generated briefs)
+daily-brief/output/daily_brief_*.md
+daily-brief/output/errors.log
