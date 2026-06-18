@@ -1,16 +1,18 @@
-// DCF Model Reviewer — Edge Function
-// Receives an .xlsx file, extracts cell values + formulas + font colours
-// from the three required tabs (P&L, Valuation Calculation, Assumptions),
-// then calls Gemini to grade against the embedded rubric + model answer.
+// DCF Model Reviewer — Edge Function v24
+// Receives a JSON payload from the browser frontend (which has already
+// parsed the .xlsx with ExcelJS), runs Gemini against the rubric +
+// model answer, and writes an audit row to dcf_submissions.
 //
 // Required env vars:
 //   GEMINI_API_KEY — Google AI Studio API key (free tier: 15 RPM, 1500/day)
-//                    Get one at https://aistudio.google.com/apikey
+//   SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY — for audit logging
 //
-// Deploy: supabase functions deploy grade-dcf
+// Deploy: supabase functions deploy grade-dcf --no-verify-jwt
+// Frontend lives at dcf-grader/app.js — it parses Excel client-side and
+// sends { candidate_id, file_name, context, matched, missing_categories,
+// naming_deviations, all_sheets } as JSON.
 
 import { createClient } from 'jsr:@supabase/supabase-js@2';
-import ExcelJS from 'npm:exceljs@4.4.0';
 
 const GEMINI_API_KEY = Deno.env.get('GEMINI_API_KEY') || '';
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') || '';
@@ -23,30 +25,8 @@ async function logSubmission(row: Record<string, unknown>): Promise<void> {
   if (error) console.error('[grade-dcf] audit insert failed:', error.message);
 }
 
-// gemini-2.0-flash is free, fast, supports structured JSON output via responseSchema.
-// Upgrade to gemini-2.5-flash or gemini-1.5-pro for better quality if needed (still free tier).
 const GEMINI_MODEL  = 'gemini-2.0-flash';
-const MAX_FILE_BYTES = 12 * 1024 * 1024; // 12MB hard cap (UI sets 10MB)
-
-// Logical sections the rubric assumes — at least one match per section is required.
-// Naming is flexible: accept the prescribed 3-tab layout (P&L / Valuation Calculation /
-// Assumptions) OR a banker-style multi-tab layout (Financials / DCF input / DCF output /
-// Company fin forecasts / Assumptions). Only flag a section as missing if NO tab name
-// matches any of its patterns.
-const REQUIRED_SECTIONS: Record<string, RegExp[]> = {
-  'Assumptions': [/^assumptions/i, /^drivers/i, /^inputs/i],
-  'P&L / Forecast': [/p&l/i, /financials?/i, /forecast/i, /income/i],
-  'Valuation': [/valuation/i, /^dcf/i, /\bdcf\b/i],
-};
-
-function findMissingSections(tabNames: string[]): string[] {
-  const trimmed = tabNames.map(n => n.trim());
-  const missing: string[] = [];
-  for (const [section, patterns] of Object.entries(REQUIRED_SECTIONS)) {
-    if (!trimmed.some(name => patterns.some(p => p.test(name)))) missing.push(section);
-  }
-  return missing;
-}
+const MAX_CONTEXT_CHARS = 40000; // frontend caps at 35k; allow a bit of headroom
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -105,8 +85,6 @@ commenting.
 `;
 
 // ─── Model answer (Tap & Turf Holdings Pty Ltd reference build) ─────────────
-// Source: dcf-grader/tools/tap-turf-dcf.py → dcf-grader/config/tap-turf-model-answer.md
-// Refresh when real comp set EV/EBITDA and WACC inputs land.
 const MODEL_ANSWER = `
 ## Case study: Tap & Turf Holdings Pty Ltd (AU stadium beverage concessions)
 - Transaction date: 31 March 2026 (FY26)
@@ -173,8 +151,6 @@ Both methods are expected. Perpetuity is the more grounded figure for this niche
 - Currency choice (AUD/USD) doesn't matter; internal consistency does
 `;
 
-// ─── Output schema enforced by Gemini's responseSchema ──────────────────────
-// JSON Schema (subset Gemini supports). Guarantees the response shape.
 const RESPONSE_SCHEMA = {
   type: 'object',
   properties: {
@@ -201,88 +177,13 @@ const RESPONSE_SCHEMA = {
   required: ['totalScore', 'components', 'formattingViolations'],
 };
 
-// ─── Excel parsing ──────────────────────────────────────────────────────────
-type ParsedCell = {
-  ref: string;              // e.g. "P&L!D14"
-  value: string | number | null;
-  formula: string | null;
-  fontColor: string | null; // e.g. "FF0000FF" or null
-};
+async function callGemini(workbookContext: string, candidateId: string, matched: Record<string, string>, missingCategories: string[]): Promise<any> {
+  const layoutNote = `## Candidate's tab mapping
+- Assumptions section: ${matched['Assumptions'] || 'MISSING'}
+- P&L section: ${matched['P&L'] || 'MISSING'}
+- Valuation section: ${matched['Valuation Calculation'] || 'MISSING'}
+${missingCategories.length > 0 ? `\nMISSING categories (deduct accordingly): ${missingCategories.join(', ')}` : ''}`;
 
-type ParsedTab = {
-  name: string;
-  rowCount: number;
-  colCount: number;
-  cells: ParsedCell[];
-};
-
-async function parseWorkbook(buffer: ArrayBuffer): Promise<{ tabs: ParsedTab[]; missingTabs: string[] }> {
-  const wb = new ExcelJS.Workbook();
-  await wb.xlsx.load(buffer);
-
-  const presentNames = wb.worksheets.map(ws => ws.name.trim());
-  const missingTabs = findMissingSections(presentNames);
-
-  const tabs: ParsedTab[] = [];
-  for (const ws of wb.worksheets) {
-    const cells: ParsedCell[] = [];
-    let maxRow = 0, maxCol = 0;
-    ws.eachRow({ includeEmpty: false }, (row, rowNum) => {
-      maxRow = Math.max(maxRow, rowNum);
-      row.eachCell({ includeEmpty: false }, (cell, colNum) => {
-        maxCol = Math.max(maxCol, colNum);
-        const formula = (cell.formula || (cell.value as any)?.formula) ?? null;
-        let value: any = cell.value;
-        if (value && typeof value === 'object' && 'result' in value) value = (value as any).result;
-        if (value && typeof value === 'object' && 'richText' in value) {
-          value = (value as any).richText.map((r: any) => r.text).join('');
-        }
-        // font colour can be: { argb: 'FF0000FF' } or { theme: 1, tint: 0 } or undefined
-        const colorObj = cell.font?.color as any;
-        let fontColor: string | null = null;
-        if (colorObj?.argb)        fontColor = colorObj.argb;
-        else if (colorObj?.theme != null) fontColor = `theme:${colorObj.theme}`;
-        else if (colorObj?.indexed != null) fontColor = `indexed:${colorObj.indexed}`;
-
-        cells.push({
-          ref: `${ws.name}!${cell.address}`,
-          value: typeof value === 'number' || typeof value === 'string' ? value : (value == null ? null : String(value)),
-          formula: formula ? String(formula) : null,
-          fontColor,
-        });
-      });
-    });
-    tabs.push({ name: ws.name, rowCount: maxRow, colCount: maxCol, cells });
-  }
-
-  return { tabs, missingTabs };
-}
-
-// Compress parsed workbook into a string Claude can ingest.
-// Includes only useful cells (has value or formula) and trims to fit context.
-function workbookToContext(tabs: ParsedTab[]): string {
-  const lines: string[] = [];
-  for (const tab of tabs) {
-    lines.push(`\n=== TAB: ${tab.name} (${tab.rowCount} rows × ${tab.colCount} cols) ===`);
-    const interesting = tab.cells.filter(c => c.value != null || c.formula != null);
-    // Cap per tab to keep context manageable
-    const capped = interesting.slice(0, 800);
-    for (const c of capped) {
-      const parts = [c.ref];
-      if (c.formula) parts.push(`formula: ${c.formula}`);
-      if (c.value != null) parts.push(`value: ${typeof c.value === 'string' ? JSON.stringify(c.value).slice(0, 80) : c.value}`);
-      if (c.fontColor) parts.push(`color: ${c.fontColor}`);
-      lines.push(parts.join(' | '));
-    }
-    if (interesting.length > capped.length) {
-      lines.push(`... (${interesting.length - capped.length} more cells truncated)`);
-    }
-  }
-  return lines.join('\n');
-}
-
-// ─── Gemini API ─────────────────────────────────────────────────────────────
-async function callGemini(workbookContext: string, candidateId: string): Promise<any> {
   const systemInstruction = `You are a strict, consistent DCF model grader for an M&A interview prep program.
 
 You receive a parsed Excel workbook (cell values, formulas, font colours per cell). Grade the candidate's submission against the rubric below.
@@ -292,12 +193,14 @@ ${RUBRIC}
 ## Model Answer (reference)
 ${MODEL_ANSWER}
 
+${layoutNote}
+
 ## Candidate name / identifier
 ${candidateId}
 
 ## Important rules
 - Be SPECIFIC and ACTIONABLE in commentary. Reference cell addresses (e.g. "P&L!D14").
-- If a LOGICAL SECTION is missing (Assumptions / P&L-like / Valuation-like), award 0 for the affected component(s) and call it out. Note: banker-style multi-tab layouts (e.g. "DCF input", "DCF output", "Company fin forecasts", "Financials") count toward the P&L/Valuation sections — do NOT penalise tab naming.
+- If a LOGICAL SECTION is missing (see layout note), award 0 for the affected component(s) and call it out. Banker-style tab names that map to a section count — do NOT penalise tab naming.
 - For formatting: blue = font color starting with "FF0000FF" or RGB blue. Theme colors (e.g. "theme:5") may also be blue depending on theme — if uncertain, mention it.
 - Whole-number scores only. The sum of component scores MUST equal totalScore.
 - Always return all 4 components in the components array, even if a tab is missing (score 0 in that case).`;
@@ -315,7 +218,7 @@ ${candidateId}
         responseMimeType: 'application/json',
         responseSchema: RESPONSE_SCHEMA,
         maxOutputTokens: 2048,
-        temperature: 0.2, // low temperature for consistent grading
+        temperature: 0.2,
       },
     }),
   });
@@ -332,7 +235,7 @@ ${candidateId}
   }
   try {
     return JSON.parse(text);
-  } catch (e) {
+  } catch {
     throw new Error(`Failed to parse Gemini response as JSON: ${text.slice(0, 200)}`);
   }
 }
@@ -347,90 +250,78 @@ Deno.serve(async (req: Request) => {
   }
 
   const t0 = Date.now();
+  let candidateId = '';
+  let fileName = '';
 
   try {
-    const formData = await req.formData();
-    const candidateId = String(formData.get('candidate_id') || '').trim();
-    const file = formData.get('file');
-
-    if (!candidateId)              return json({ error: 'Missing candidate identifier.' }, 400);
-    if (!(file instanceof File))   return json({ error: 'Missing file upload.' }, 400);
-    if (!file.name.toLowerCase().endsWith('.xlsx'))
-                                    return json({ error: 'File must be .xlsx format.' }, 400);
-    if (file.size > MAX_FILE_BYTES) return json({ error: `File too large (max ${(MAX_FILE_BYTES/1024/1024).toFixed(0)}MB).` }, 400);
-
-    const buffer = await file.arrayBuffer();
-    console.log(`[grade-dcf] received file=${file.name} size=${file.size} candidate=${candidateId}`);
-
-    let parsed;
-    try {
-      parsed = await parseWorkbook(buffer);
-    } catch (e) {
-      console.error('[grade-dcf] parse error:', e);
-      await logSubmission({
-        candidate_id: candidateId, file_name: file.name, file_size: file.size,
-        error: `parse: ${(e as Error).message ?? 'unknown'}`,
-        processing_ms: Date.now() - t0,
-      });
-      return json({ error: 'Could not parse the Excel file. Make sure it is a valid .xlsx file (not .xls or password-protected).' }, 400);
+    const body = await req.json().catch(() => null);
+    if (!body || typeof body !== 'object') {
+      return json({ error: 'Request body must be JSON.' }, 400);
     }
 
-    console.log(`[grade-dcf] parsed tabs=${parsed.tabs.map(t => t.name).join(', ')} missing=${parsed.missingTabs.join(', ')||'none'}`);
+    candidateId = String(body.candidate_id || '').trim();
+    fileName    = String(body.file_name || '').trim();
+    const context           = String(body.context || '');
+    const matched           = (body.matched && typeof body.matched === 'object') ? body.matched : {};
+    const missingCategories = Array.isArray(body.missing_categories) ? body.missing_categories.map(String) : [];
+    const allSheets         = Array.isArray(body.all_sheets) ? body.all_sheets.map(String) : [];
 
-    if (parsed.tabs.length === 0) {
-      await logSubmission({
-        candidate_id: candidateId, file_name: file.name, file_size: file.size,
-        error: 'no readable sheets',
-        processing_ms: Date.now() - t0,
-      });
-      return json({ error: 'The workbook has no readable sheets.' }, 400);
+    if (!candidateId) return json({ error: 'Missing candidate identifier.' }, 400);
+    if (!fileName)    return json({ error: 'Missing file_name.' }, 400);
+    if (!context)     return json({ error: 'Missing parsed workbook context.' }, 400);
+    if (context.length > MAX_CONTEXT_CHARS) {
+      return json({ error: `Context too large (${context.length} chars, max ${MAX_CONTEXT_CHARS}).` }, 400);
     }
 
-    const context = workbookToContext(parsed.tabs);
-    console.log(`[grade-dcf] context length=${context.length} chars`);
+    console.log(`[grade-dcf] candidate=${candidateId} file=${fileName} ctx=${context.length}b matched=${Object.keys(matched).length}/3 missing=${missingCategories.join(',')||'none'}`);
 
     let report;
     try {
-      report = await callGemini(context, candidateId);
+      report = await callGemini(context, candidateId, matched, missingCategories);
     } catch (e) {
       console.error('[grade-dcf] AI error:', e);
       await logSubmission({
-        candidate_id: candidateId, file_name: file.name, file_size: file.size,
+        candidate_id: candidateId,
+        file_name: fileName,
         error: `ai: ${(e as Error).message ?? 'unknown'}`,
         processing_ms: Date.now() - t0,
-        parsed_tabs: parsed.tabs.map(t => t.name),
-        missing_tabs: parsed.missingTabs,
+        parsed_tabs: allSheets,
+        missing_tabs: missingCategories,
       });
       return json({ error: 'AI grading service is currently unavailable. Please try again in a minute.' }, 503);
     }
 
-    // Sanity check — ensure score adds up; if not, trust components
     const summed = (report.components || []).reduce((s: number, c: any) => s + (Number(c.score) || 0), 0);
     if (Math.abs(summed - report.totalScore) > 1) report.totalScore = summed;
 
     report.meta = {
       candidate_id: candidateId,
-      file_name: file.name,
+      file_name: fileName,
       processing_ms: Date.now() - t0,
-      missing_tabs: parsed.missingTabs,
-      parsed_tabs: parsed.tabs.map(t => ({ name: t.name, cellCount: t.cells.length })),
+      missing_categories: missingCategories,
+      matched,
     };
 
     await logSubmission({
       candidate_id: candidateId,
-      file_name: file.name,
-      file_size: file.size,
+      file_name: fileName,
       total_score: report.totalScore,
       report,
       processing_ms: Date.now() - t0,
-      parsed_tabs: parsed.tabs.map(t => t.name),
-      missing_tabs: parsed.missingTabs,
+      parsed_tabs: allSheets,
+      missing_tabs: missingCategories,
     });
 
     console.log(`[grade-dcf] done in ${Date.now()-t0}ms score=${report.totalScore}/100`);
     return json(report);
   } catch (err) {
     console.error('[grade-dcf] unhandled:', err);
+    await logSubmission({
+      candidate_id: candidateId || 'unknown',
+      file_name: fileName || 'unknown',
+      error: `unhandled: ${(err as Error).message ?? 'unknown'}`,
+      processing_ms: Date.now() - t0,
+    });
     return json({ error: (err as Error).message ?? 'Unknown error' }, 500);
   }
 });
