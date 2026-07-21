@@ -146,10 +146,52 @@
 
 ## ⚖️ Cost vs Time Matrix
 
-*[Loading — Agent 3 completing...]*
+**Model pricing basis:** Claude Sonnet — $3.00/M input · $15.00/M output
+
+| Metric | Project 1: FX Sentinel | Project 2: DD Copilot | Project 3: Macro MCP |
+|---|---|---|---|
+| Monthly Claude cost | ~$9.72 | ~$3.98 | $0 (Desktop) / ~$7–8 (API) |
+| Other monthly costs | ~$7–10 | $0 | $0 |
+| **Total monthly (steady-state)** | **~$17–20** | **~$4** | **~$0–8** |
+| MVP build time | 8–12h | 6–10h | 15–20h |
+| Portfolio build time | 25–35h | 20–30h | 40–50h |
+| Maintenance | 1–2h/wk | 0.5h/wk | 1–2h/wk |
+| Interview score | 8/10 | 7/10 | 9/10 |
+| LinkedIn signal | 9/10 | 7/10 | 8/10 |
+| Afterprime utility | 9/10 | 5/10 | 7/10 |
+| Visa leverage | 7/10 | 6/10 | 8/10 |
+| **Composite ROI** | **8.3** | **6.3** | **8.0** |
+| **Decision** | **BUILD** | **SKIP (for now)** | **BUILD** |
+
+### Full Cost Breakdown
+
+**Project 1 — FX Hedging Sentinel**
+- Tokens/run: ~2,000 input + ~500 output · 720 runs/month → **$9.72/mo Claude**
+- OANDA + Bybit APIs: free · Twilio SMS: ~$2/mo · VPS: ~$5–7/mo
+- **Total: ~$17–20/mo**
+
+**Project 2 — Alt Investment DD Copilot**
+- Tokens/run: ~14,000 input + ~2,500 output · 50 runs/month → **$3.98/mo Claude**
+- Streamlit + Supabase free tier + open-source PDF libs
+- **Total: ~$4/mo**
+
+**Project 3 — Macro Factor MCP Server**
+- Runs on Claude Desktop subscription (flat rate) · FRED, yfinance, CFTC, BIS all free · DuckDB local
+- **Total: ~$0/mo** (if Claude Desktop sub already held)
+
+### Total if all 3 built to MVP
+| | Project 1 | Project 2 | Project 3 | **Combined** |
+|---|---|---|---|---|
+| Build time | 8–12h | 6–10h | 15–20h | **29–42h** |
+| Monthly run cost | ~$18 | ~$4 | ~$0–8 | **~$22–30/mo** |
+| 3-month total | ~$54 | ~$12 | ~$0–24 | **~$66–90** |
+
+*Recommended path (Projects 1 + 3 only): 23–32h build, ~$17–28/mo, ~$51–84 over first 3 months.*
 
 ---
 
 ## 🎯 Today's Top Recommendation
 
-*[Loading — Agent 3 completing...]*
+**Build Project 1 (FX Hedging Sentinel) first, then Project 3 (Macro MCP Server).** Project 1 has the highest composite ROI at 8.3 — it maps directly to Maitrya's live role at Afterprime, can be demoed in an actual work context (not just an interview room), and carries a uniquely credible LinkedIn post where trading operations authority and AI engineering reinforce each other. At 8–12h to a working MVP and ~$17–20/mo to run, the return-on-time is hard to beat.
+
+Project 3 follows naturally as the second sprint: it's effectively free to run on a Claude Desktop subscription, produces a shareable GitHub artifact, and targets a different audience — quant/AI engineering interviewers at hedge funds and prop shops rather than risk managers. Skip Project 2 for now; document AI is a crowded category and its Afterprime utility score (5/10) is too low to justify the build time given the other two options.
