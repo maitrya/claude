@@ -1,0 +1,2 @@
+date,agent1_input_tokens,agent1_output_tokens,agent2_input_tokens,agent2_output_tokens,agent3_input_tokens,agent3_output_tokens,total_cost_usd
+2026-08-04,13500,1150,850,750,9200,850,0.1119
