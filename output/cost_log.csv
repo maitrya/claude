@@ -1,0 +1,2 @@
+date,agent_1_tokens,agent_2_tokens,agent_3_tokens,total_tokens,total_cost_usd,notes
+2026-08-31,27217,3000,60860,96077,0.30,no-live-web-search;news-from-knowledge-cutoff
