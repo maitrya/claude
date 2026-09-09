@@ -1,0 +1,2 @@
+date,agent_1_tokens,agent_2_tokens,agent_3_tokens,total_tokens,total_cost_usd,notes
+2026-09-09,3200,900,700,4800,0.04,"Agent 1: 4x WebSearch + synthesis. Model: claude-sonnet-4-6. Includes web search overhead."
