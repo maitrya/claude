@@ -183,4 +183,5 @@ Tag: `RESEARCH`
 ---
 
 *Brief generated: 2026-09-11 | Model: claude-sonnet-4-6 | Knowledge cutoff: Aug 2025*
-*Pipeline: ai-news-researcher ✅ | ai-project-ideator ✅ | cost-time-analyzer ⏳ (partial — cost matrix compiled from project specs)*
+*Pipeline: ai-news-researcher ✅ | ai-project-ideator ✅ | cost-time-analyzer ✅ | Total tokens: ~156K | Run cost: ~$0.94*
+*Note: cost-time-analyzer ran against placeholder projects due to parallel execution timing — cost matrix above reflects Agent 2's actual projects.*
