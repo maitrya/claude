@@ -155,4 +155,4 @@ Source: [arXiv:2607.20468](https://arxiv.org/abs/2607.20468)
 
 ---
 
-*Generated: 2026-09-25 | Pipeline cost: ~$0.35 | Agents: 3 parallel/sequential*
+*Generated: 2026-09-25 | Tokens: 159,982 (A1: 40,489 · A2: 29,939 · A3: 89,554) | Pipeline cost: ~$1.10 | Agents: 3 parallel/sequential*
