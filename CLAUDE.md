@@ -7,20 +7,24 @@
 
 ## 🚀 First 5 minutes in a new chat
 
-Do these in order:
+1. **Run the health check through the `supabase-ops` agent** (see "Model routing" below) — it verifies the Supabase MCP connection to project `dsnkabdmposyukcedduy`, pulls profile/active/dormant/cron counts, and reports any `status = 'failed'` rows in `insight_email_log`. If Supabase MCP is not connected, ask the user to enable it before any debugging.
+2. **Skip the health check for pure frontend or docs tasks** — it is only needed when the task touches data, emails, crons or edge functions.
+3. **Cohort snapshots and session history live in `docs/project-state.md`** — read it only when the task is about the cohort or past decisions.
 
-1. **Verify Supabase MCP is connected** — try a quick `execute_sql` against project `dsnkabdmposyukcedduy`. If not connected, ask the user to enable it before any debugging.
-2. **Pull the current state:**
-   ```sql
-   SELECT
-     (SELECT COUNT(*) FROM profiles) AS profiles,
-     (SELECT COUNT(DISTINCT user_id) FROM networking_weeks) AS active_users,
-     (SELECT COUNT(*) FROM get_dormant_users()) AS dormant,
-     (SELECT jsonb_agg(jobname || ':' || schedule) FROM cron.job) AS crons;
-   ```
-3. **Check `insight_email_log` for any recent failed sends** — if `status = 'failed'` rows exist, investigate before next cron fires.
-4. **Read this whole file once** — it's <250 lines, takes 90 seconds, saves 30 minutes.
-5. **Check `TaskList`** — if the previous chat created tasks (TaskCreate), they may still be in the local DB.
+---
+
+## 🧭 Model routing (subagents in `.claude/agents/`)
+
+The main session plans, makes judgment calls and reviews. Delegate only when it keeps bulky output out of the main context or the work is fully specified; a subagent starts cold, so small edits and one-line lookups stay inline.
+
+| Work | Who | Why |
+|---|---|---|
+| DB queries, cron status, edge-function/auth logs, "why can't user X see their data" | `supabase-ops` (Haiku) | Output is bulky rows and logs; only the conclusion matters |
+| A change already specified down to file, location and behaviour (dashboard HTML, `dcf-grader/app.js`, edge function source) | `implementer` (Sonnet) | Mechanical once specified |
+| Root-causing bugs, rubric/prompt tuning for `grade-dcf`, schema changes, anything touching auth or email sends | Main session | Subtle; a wrong cheap answer costs more than it saves |
+| Deploying edge functions, migrations, forced email sends | Main session, after the user confirms | Outward-facing and hard to reverse |
+
+Always review an `implementer` diff before committing.
 
 ---
 
@@ -139,31 +143,6 @@ Both live in user-level `.claude/skills/` (NOT committed). On a new machine, cop
 | Force-resend a deduped email | Add `"force": true` to the POST body |
 | Check cron job status | `SELECT * FROM cron.job_run_details ORDER BY start_time DESC LIMIT 20;` |
 
-## 📊 Cohort state (2026-05-20)
-
-**20 profiles · 5 active · 15 dormant · 4 cron jobs running**
-
-### The 5 active users
-
-| User | Goals | Avg req/wk | Avg msg/wk | Accept | Hit-both | Notes |
-|---|---|---:|---:|---:|---:|---|
-| `archie@preppedtalent.com.au` | 20/20 | 68.1 | 1010 | 92% | 81% | Power user (operator) |
-| `maitryainfinity@gmail.com` | 20/20 | 35.2 | 72.5 | 89% | 67% | **Could raise goals to 35/35** |
-| `yamaan2003@gmail.com` | 35/35 | 28.0 | 13.0 | **51%** | **0%** | **Goals too high. Coaching needed: low accept rate + 0.5 msg/req ratio = blast-and-burn** |
-| `lfox0017@gmail.com` | 20/20 | 21.8 | 20.8 | 70% | 25% | Steady, could push higher |
-| `anthonysiciliano04@gmail.com` | 10/6 | 2.7 | 0.9 | 68% | 8% | **Barely engaged — verify still in program** |
-
-### Platform benchmarks (cohort averages, live via RPC)
-
-```
-22 reqs/wk · 77% acceptance · 166 msgs/wk · 0 catch-ups
-```
-
-### Cohort-wide observations
-- **0 catch-ups across ALL 5 users in ~60 user-weeks** = statistically impossible. Either checkbox unused or AI detection needed (parked).
-- **4/5 users stale by 3+ weeks** — Maitrya is only one with current-week data. Weekly cron email will keep nudging.
-- **18 of 20 signups dropped off pre-upload** (90% activation gap). Day-1 follow-up cron addresses going forward.
-
 ## Decisions made
 
 - **Magic link over email+password** — diverges from PRD AUTH-01/02 but better UX
@@ -188,16 +167,3 @@ Both live in user-level `.claude/skills/` (NOT committed). On a new machine, cop
 
 - **Maitrya** (developer) — `maitryainfinity@gmail.com` / `maitryaanupam@outlook.com`
 - **Archie** (Prepped Talent operator) — `archie@preppedtalent.com.au`
-
-## Recent chat sessions (chronological)
-
-- 2026-04-21 — Dashboard V2 rebuild, pink/purple theme, CSV upload UI
-- 2026-04-23 — Goal setting, drilldown charts, bug button
-- 2026-04-27 — Vercel deploy, branded subdomain, Edge Function magic link
-- 2026-04-28 → 04-30 — DCF grader scaffold, Claude integration, prompt tuning
-- 2026-05-04 → 05-12 — DCF grader to working MVP, format-agnostic rubric
-- 2026-05-18 — Email insights system (5 templates, DB analytics functions)
-- 2026-05-19 — Sent first batch of emails (4 weekly + 18 dormant), throttle + dedupe added
-- 2026-05-20 — Maitrya joined as 5th user, platform benchmarks unlocked, cron jobs scheduled, cohort analysis surfaced
-
-Next chat: pick up from any item in the "Active TODOs" table above.
